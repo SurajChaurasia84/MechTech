@@ -30,7 +30,14 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       accentColor = const Color(0xFF00B0FF);
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: _currentIndex == 0, // allow close only from Home tab
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
       appBar: AppBar(
         backgroundColor: const Color(0xFF161426),
@@ -120,7 +127,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           ],
         ),
       ),
-    );
+    ), // Scaffold
+    ); // PopScope
   }
 
   String _getAppBarTitle() {
