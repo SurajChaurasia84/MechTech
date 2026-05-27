@@ -150,10 +150,91 @@ class ProfileTab extends StatelessWidget {
                   title: 'Log Out',
                   titleColor: Colors.redAccent,
                   iconColor: Colors.redAccent,
-                  onTap: () => appState.logout(),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          backgroundColor: const Color(0xFF161426),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
+                          ),
+                          title: Text(
+                            'Log Out',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          content: Text(
+                            'Are you sure you want to log out of your account?',
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF8B88A5),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF8B88A5),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                appState.logout();
+                              },
+                              child: Text(
+                                'Log Out',
+                                style: GoogleFonts.inter(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 32),
+          Column(
+            children: [
+              Text(
+                'MechTech',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withOpacity(0.7),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Version 1.0.0 (1)',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: const Color(0xFF8B88A5).withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '© 2026 MechTech. All rights reserved.',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: const Color(0xFF8B88A5).withOpacity(0.5),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 48),
         ],
