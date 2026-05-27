@@ -128,7 +128,7 @@ class ProfileTab extends StatelessWidget {
                   icon: Icons.privacy_tip_outlined,
                   title: 'Privacy Policy',
                   onTap: () async {
-                    final Uri url = Uri.parse('https://example.com/privacy-policy');
+                    final Uri url = Uri.parse('https://surajchaurasia84.github.io/MechTech/');
                     if (await canLaunchUrl(url)) {
                       await launchUrl(url, mode: LaunchMode.externalApplication);
                     }
