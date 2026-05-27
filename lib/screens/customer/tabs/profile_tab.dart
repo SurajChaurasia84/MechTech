@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/app_state.dart';
+import '../edit_profile_screen.dart';
+import '../add_address_screen.dart';
+import 'history_tab.dart';
 
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
@@ -11,7 +16,6 @@ class ProfileTab extends StatelessWidget {
     final appState = context.watch<AppState>();
     final customerName = appState.currentCustomerName ?? 'Valued Customer';
     final customerEmail = appState.currentCustomerEmail ?? 'No email associated';
-    final bookingsCount = appState.bookings.length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -55,30 +59,6 @@ class ProfileTab extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Statistics Row
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatItem(
-                  title: 'Bookings',
-                  value: bookingsCount.toString(),
-                  icon: Icons.calendar_today_rounded,
-                  color: const Color(0xFF00E676),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatItem(
-                  title: 'Completed',
-                  value: appState.bookings.where((b) => b.status == 'Completed').length.toString(),
-                  icon: Icons.check_circle_outline_rounded,
-                  color: const Color(0xFF00B0FF),
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 32),
 
           // Actions List
@@ -94,21 +74,75 @@ class ProfileTab extends StatelessWidget {
             child: Column(
               children: [
                 _buildProfileListItem(
-                  icon: Icons.settings_outlined,
-                  title: 'App Settings',
-                  onTap: () {},
+                  icon: Icons.person_2_outlined,
+                  title: 'Edit Profile',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const EditProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.map_outlined,
+                  title: 'Add Address',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AddAddressScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.history_rounded,
+                  title: 'Booking History',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const BookingHistoryScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
                   icon: Icons.help_outline_rounded,
-                  title: 'Support & FAQs',
-                  onTap: () {},
+                  title: 'Help & Support',
+                  onTap: () async {
+                    final Uri emailLaunchUri = Uri(
+                      scheme: 'mailto',
+                      path: '1shreejee1@gmail.com',
+                      query: Uri.encodeFull('subject=MechTech Support Request'),
+                    );
+                    if (await canLaunchUrl(emailLaunchUri)) {
+                      await launchUrl(emailLaunchUri);
+                    }
+                  },
                 ),
                 const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
                   icon: Icons.privacy_tip_outlined,
                   title: 'Privacy Policy',
-                  onTap: () {},
+                  onTap: () async {
+                    final Uri url = Uri.parse('https://example.com/privacy-policy');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.share_outlined,
+                  title: 'Share App',
+                  onTap: () {
+                    Share.share(
+                      'Check out MechTech - the premium mechanic service app! Download now: https://play.google.com/store/apps/details?id=com.mechtech.mechanic.apps',
+                    );
+                  },
                 ),
                 const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
@@ -122,47 +156,6 @@ class ProfileTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 48),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161426),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF302B53).withOpacity(0.5),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: const Color(0xFF8B88A5),
-            ),
-          ),
         ],
       ),
     );
