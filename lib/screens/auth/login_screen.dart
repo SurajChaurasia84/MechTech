@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Customer Portal',
+                            'Welcome Back',
                             style: GoogleFonts.outfit(
                               fontSize: 24,
                               fontWeight: FontWeight.w600,
