@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'services/app_state.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/customer_dashboard.dart';
@@ -10,7 +9,6 @@ import 'screens/customer/customer_dashboard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  await GoogleSignIn.instance.initialize();
   // Set system navigation/status bar styling for seamless UI
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
