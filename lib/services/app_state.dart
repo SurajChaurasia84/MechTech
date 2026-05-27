@@ -1,15 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/service_model.dart';
 
 class AppState extends ChangeNotifier {
-  String? _currentCustomerName;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? _user;
+  String? _currentCustomerName; // Fallback for testing/non-firebase
   VehicleType? _selectedVehicleType;
   String? _selectedVehicleModel;
   final List<ServiceItem> _selectedServices = [];
   final List<ServiceBooking> _bookings = [];
 
+  // Constructor
+  AppState() {
+    _auth.authStateChanges().listen((User? user) {
+      _user = user;
+      notifyListeners();
+    });
+  }
+
   // Getters
-  String? get currentCustomerName => _currentCustomerName;
+  User? get user => _user;
+  String? get currentCustomerName => _user?.displayName ?? _currentCustomerName;
+  String? get currentCustomerEmail => _user?.email;
+  String? get currentCustomerPhotoUrl => _user?.photoURL;
+  
   VehicleType? get selectedVehicleType => _selectedVehicleType;
   String? get selectedVehicleModel => _selectedVehicleModel;
   List<ServiceItem> get selectedServices => List.unmodifiable(_selectedServices);
@@ -182,17 +202,64 @@ class AppState extends ChangeNotifier {
     return _allServices.where((s) => s.vehicleType == type).toList();
   }
 
-  // Actions
-  void login(String name) {
-    _currentCustomerName = name;
-    notifyListeners();
+  // Google Sign-In Action
+  Future<bool> signInWithGoogle() async {
+    try {
+      // Trigger the Google Authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.authenticate();
+      if (googleUser == null) {
+        return false; // User cancelled
+      }
+
+      // Obtain auth details
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final clientAuth = await googleUser.authorizationClient.authorizeScopes(['email', 'profile']);
+      final accessToken = clientAuth?.accessToken;
+
+      // Create a credential
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final User? firebaseUser = userCredential.user;
+
+      if (firebaseUser != null) {
+        // Save/update user profile in Firestore
+        await _firestore.collection('users').doc(firebaseUser.uid).set({
+          'uid': firebaseUser.uid,
+          'name': firebaseUser.displayName,
+          'email': firebaseUser.email,
+          'photoUrl': firebaseUser.photoURL,
+          'lastSignIn': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error in Google Sign-In: $e");
+      return false;
+    }
   }
 
-  void logout() {
+  // Logout Action
+  Future<void> logout() async {
+    await _auth.signOut();
+    await _googleSignIn.signOut();
+    
     _currentCustomerName = null;
     _selectedVehicleType = null;
     _selectedVehicleModel = null;
     _selectedServices.clear();
+    notifyListeners();
+  }
+
+  // Local-only Fallback Login (for unit tests/offline debugging)
+  void loginOffline(String name) {
+    _currentCustomerName = name;
     notifyListeners();
   }
 
@@ -224,7 +291,8 @@ class AppState extends ChangeNotifier {
   }
 
   ServiceBooking? submitBooking() {
-    if (_currentCustomerName == null ||
+    final name = currentCustomerName;
+    if (name == null ||
         _selectedVehicleType == null ||
         _selectedVehicleModel == null ||
         _selectedServices.isEmpty) {
@@ -233,7 +301,7 @@ class AppState extends ChangeNotifier {
 
     final newBooking = ServiceBooking(
       id: 'MT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-      customerName: _currentCustomerName!,
+      customerName: name,
       vehicleType: _selectedVehicleType!,
       vehicleModel: _selectedVehicleModel!,
       selectedServices: List.from(_selectedServices),
@@ -242,6 +310,19 @@ class AppState extends ChangeNotifier {
 
     _bookings.add(newBooking);
     
+    // In a real app we might also save this booking under users/uid/bookings in Firestore:
+    if (_user != null) {
+      _firestore.collection('users').doc(_user!.uid).collection('bookings').doc(newBooking.id).set({
+        'id': newBooking.id,
+        'vehicleType': _selectedVehicleType!.name,
+        'vehicleModel': _selectedVehicleModel,
+        'totalAmount': newBooking.totalAmount,
+        'bookingDate': FieldValue.serverTimestamp(),
+        'status': newBooking.status,
+        'services': _selectedServices.map((s) => {'id': s.id, 'name': s.name, 'price': s.price}).toList(),
+      });
+    }
+
     // Clear selection for next time
     _selectedVehicleType = null;
     _selectedVehicleModel = null;
