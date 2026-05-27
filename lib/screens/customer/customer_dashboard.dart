@@ -71,21 +71,64 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Greeting
-                  Text(
-                    'Welcome back,',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: const Color(0xFF8B88A5),
+                  // Premium Profile Header Banner
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161426),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF302B53).withOpacity(0.5),
+                        width: 1.2,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    customerName,
-                    style: GoogleFonts.outfit(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: const Color(0xFF0D0B18),
+                          backgroundImage: appState.currentCustomerPhotoUrl != null
+                              ? NetworkImage(appState.currentCustomerPhotoUrl!)
+                              : null,
+                          child: appState.currentCustomerPhotoUrl == null
+                              ? const Icon(Icons.person, color: Color(0xFF00E676), size: 28)
+                              : null,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome back,',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: const Color(0xFF8B88A5),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                customerName,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if (appState.currentCustomerEmail != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  appState.currentCustomerEmail!,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF8B88A5),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 32),
