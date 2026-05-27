@@ -216,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       children: [
                                         // Official looking Google Icon representation
                                         Image.network(
-                                          'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
+                                          'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/48px-Google_%22G%22_logo.svg.png',
                                           height: 24,
                                           width: 24,
                                           errorBuilder: (context, error, stackTrace) {
