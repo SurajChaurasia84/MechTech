@@ -151,30 +151,103 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF161426),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF302B53), width: 1.5),
+                  border: Border.all(
+                    color: _selectedModel != null ? accentColor : const Color(0xFF302B53),
+                    width: 1.5,
+                  ),
+                  boxShadow: _selectedModel != null
+                      ? [
+                          BoxShadow(
+                            color: accentColor.withOpacity(0.12),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : [],
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     dropdownColor: const Color(0xFF161426),
+                    borderRadius: BorderRadius.circular(16),
                     value: _selectedModel,
-                    hint: Text(
-                      'Select Model Number/Name',
-                      style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 15),
+                    hint: Row(
+                      children: [
+                        Icon(
+                          selectedType == VehicleType.car
+                              ? Icons.directions_car_outlined
+                              : selectedType == VehicleType.bike
+                                  ? Icons.two_wheeler_outlined
+                                  : Icons.electric_car_outlined,
+                          color: const Color(0xFF8B88A5),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Select Model Number/Name',
+                          style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 15),
+                        ),
+                      ],
                     ),
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF00E676)),
+                    icon: Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
                     isExpanded: true,
                     style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
                     items: models.map((model) {
                       return DropdownMenuItem<String>(
                         value: model.name,
-                        child: Text(model.name),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selectedType == VehicleType.car
+                                  ? Icons.directions_car_rounded
+                                  : selectedType == VehicleType.bike
+                                      ? Icons.two_wheeler_rounded
+                                      : Icons.electric_car_rounded,
+                              color: _selectedModel == model.name ? accentColor : const Color(0xFF8B88A5),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              model.name,
+                              style: GoogleFonts.inter(
+                                fontWeight: _selectedModel == model.name ? FontWeight.bold : FontWeight.normal,
+                                color: _selectedModel == model.name ? Colors.white : const Color(0xFFD0CFDD),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     }).toList(),
+                    selectedItemBuilder: (BuildContext context) {
+                      return models.map((model) {
+                        return Row(
+                          children: [
+                            Icon(
+                              selectedType == VehicleType.car
+                                  ? Icons.directions_car_rounded
+                                  : selectedType == VehicleType.bike
+                                      ? Icons.two_wheeler_rounded
+                                      : Icons.electric_car_rounded,
+                              color: accentColor,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              model.name,
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
+                    },
                     onChanged: (val) {
                       setState(() {
                         _selectedModel = val;
