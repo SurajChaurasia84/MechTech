@@ -6,7 +6,7 @@ import '../models/service_model.dart';
 
 class AppState extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   User? _user;
@@ -206,19 +206,17 @@ class AppState extends ChangeNotifier {
   Future<bool> signInWithGoogle() async {
     try {
       // Trigger the Google Authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.authenticate();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         return false; // User cancelled
       }
 
       // Obtain auth details
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final clientAuth = await googleUser.authorizationClient.authorizeScopes(['email', 'profile']);
-      final accessToken = clientAuth?.accessToken;
 
       // Create a credential
       final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: accessToken,
+        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
