@@ -11,6 +11,9 @@ class AppState extends ChangeNotifier {
 
   User? _user;
   String? _currentCustomerName; // Fallback for testing/non-firebase
+  String? _currentCustomerEmail; // Fallback for testing/non-firebase
+  String? _currentCustomerPhone;
+  String? _customerAddress;
   VehicleType? _selectedVehicleType;
   String? _selectedVehicleModel;
   final List<ServiceItem> _selectedServices = [];
@@ -18,8 +21,26 @@ class AppState extends ChangeNotifier {
 
   // Constructor
   AppState() {
-    _auth.authStateChanges().listen((User? user) {
+    _auth.authStateChanges().listen((User? user) async {
       _user = user;
+      if (user != null) {
+        try {
+          final doc = await _firestore.collection('users').doc(user.uid).get();
+          if (doc.exists) {
+            final data = doc.data();
+            _currentCustomerPhone = data?['phone'] as String?;
+            _customerAddress = data?['address'] as String?;
+            _currentCustomerName = data?['name'] as String?;
+            _currentCustomerEmail = data?['email'] as String?;
+          }
+        } catch (e) {
+          debugPrint("Error loading user profile: $e");
+        }
+      } else {
+        _currentCustomerPhone = null;
+        _customerAddress = null;
+        _currentCustomerEmail = null;
+      }
       notifyListeners();
     });
   }
@@ -27,13 +48,51 @@ class AppState extends ChangeNotifier {
   // Getters
   User? get user => _user;
   String? get currentCustomerName => _user?.displayName ?? _currentCustomerName;
-  String? get currentCustomerEmail => _user?.email;
+  String? get currentCustomerEmail => _user?.email ?? _currentCustomerEmail;
+  String? get currentCustomerPhone => _currentCustomerPhone;
+  String? get customerAddress => _customerAddress;
   String? get currentCustomerPhotoUrl => _user?.photoURL;
   
   VehicleType? get selectedVehicleType => _selectedVehicleType;
   String? get selectedVehicleModel => _selectedVehicleModel;
   List<ServiceItem> get selectedServices => List.unmodifiable(_selectedServices);
   List<ServiceBooking> get bookings => List.unmodifiable(_bookings);
+
+  Future<void> updateUserProfile({required String name, required String email, String? phone}) async {
+    _currentCustomerName = name;
+    _currentCustomerEmail = email;
+    _currentCustomerPhone = phone;
+    
+    final currentUser = _user;
+    if (currentUser != null) {
+      try {
+        await currentUser.updateDisplayName(name);
+        await _firestore.collection('users').doc(currentUser.uid).update({
+          'name': name,
+          'email': email,
+          'phone': phone,
+        });
+      } catch (e) {
+        debugPrint("Error updating profile: $e");
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateCustomerAddress(String address) async {
+    _customerAddress = address;
+    final currentUser = _user;
+    if (currentUser != null) {
+      try {
+        await _firestore.collection('users').doc(currentUser.uid).update({
+          'address': address,
+        });
+      } catch (e) {
+        debugPrint("Error updating address: $e");
+      }
+    }
+    notifyListeners();
+  }
 
   // Mock Data
   final List<VehicleModel> _allModels = [
@@ -249,6 +308,9 @@ class AppState extends ChangeNotifier {
     await _googleSignIn.signOut();
     
     _currentCustomerName = null;
+    _currentCustomerEmail = null;
+    _currentCustomerPhone = null;
+    _customerAddress = null;
     _selectedVehicleType = null;
     _selectedVehicleModel = null;
     _selectedServices.clear();
