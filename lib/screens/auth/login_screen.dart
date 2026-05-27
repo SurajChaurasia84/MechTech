@@ -11,18 +11,35 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
+  void _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      context.read<AppState>().login(_nameController.text.trim());
+    final success = await context.read<AppState>().signInWithGoogle();
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Google Sign-in failed. Please try again.',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -32,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFF0D0B18),
       body: Stack(
         children: [
-          // Background Gradient Circles for Glassmorphism depth
+          // Background Gradient Circles for depth
           Positioned(
             top: -100,
             right: -100,
@@ -130,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 48),
 
-                    // Login Card (Glassmorphic look)
+                    // Login Card
                     Container(
                       padding: const EdgeInsets.all(24.0),
                       decoration: BoxDecoration(
@@ -141,81 +158,49 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 1.5,
                         ),
                       ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Welcome',
-                              style: GoogleFonts.outfit(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Customer Portal',
+                            style: GoogleFonts.outfit(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Please enter your name to access customer services',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF8B88A5),
-                              ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Please sign in with Google to browse and book professional vehicle services.',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF8B88A5),
+                              height: 1.4,
                             ),
-                            const SizedBox(height: 24),
-                            // Name Input
-                            TextFormField(
-                              controller: _nameController,
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
-                              decoration: InputDecoration(
-                                labelText: 'Your Full Name',
-                                labelStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5)),
-                                hintText: 'Enter name (e.g. John Doe)',
-                                hintStyle: GoogleFonts.inter(color: const Color(0xFF535072)),
-                                prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF00E676)),
-                                filled: true,
-                                fillColor: const Color(0xFF0D0B18),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16.0),
-                                  borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16.0),
-                                  borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16.0),
-                                  borderSide: const BorderSide(color: Color(0xFF00E676), width: 1.5),
-                                ),
-                                errorBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16.0),
-                                  borderSide: const BorderSide(color: Colors.redAccent),
+                          ),
+                          const SizedBox(height: 32),
+                          
+                          if (_isLoading)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00E676)),
                                 ),
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter your name';
-                                }
-                                return null;
-                              },
-                              onFieldSubmitted: (_) => _submit(),
-                            ),
-                            const SizedBox(height: 24),
-                            // Submit Button
+                            )
+                          else
+                            // Premium Sign In with Google Button
                             Container(
                               height: 56,
                               decoration: BoxDecoration(
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(16.0),
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF00E676), Color(0xFF00B0FF)],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF00E676).withOpacity(0.3),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 5),
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
@@ -223,23 +208,41 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(16.0),
-                                  onTap: _submit,
-                                  child: Center(
-                                    child: Text(
-                                      'Enter App',
-                                      style: GoogleFonts.outfit(
-                                        color: const Color(0xFF0D0B18),
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.8,
-                                      ),
+                                  onTap: _handleGoogleSignIn,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        // Official looking Google Icon representation
+                                        Image.network(
+                                          'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
+                                          height: 24,
+                                          width: 24,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return const Icon(
+                                              Icons.g_mobiledata_rounded,
+                                              color: Color(0xFF4285F4),
+                                              size: 32,
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Text(
+                                          'Continue with Google',
+                                          style: GoogleFonts.outfit(
+                                            color: const Color(0xFF0D0B18),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
                   ],
