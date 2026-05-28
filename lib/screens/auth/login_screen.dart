@@ -12,13 +12,16 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
+  String _selectedRole = 'customer'; // 'customer' or 'mechanic'
 
   void _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
     });
 
-    final success = await context.read<AppState>().signInWithGoogle();
+    final success = await context.read<AppState>().signInWithGoogle(
+      selectedRole: _selectedRole,
+    );
 
     if (mounted) {
       setState(() {
@@ -97,55 +100,151 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Logo
+                    const SizedBox(height: 20),
+                    // Brand Logo (wrench inside green rounded container)
                     Container(
                       alignment: Alignment.center,
                       child: Container(
                         padding: const EdgeInsets.all(18.0),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF161426),
+                          color: const Color(0xFF08693F), // Rich green branding background
                           borderRadius: BorderRadius.circular(24.0),
-                          border: Border.all(
-                            color: const Color(0xFF302B53),
-                            width: 1.5,
-                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00E676).withOpacity(0.1),
+                              color: const Color(0xFF00E676).withOpacity(0.2),
                               blurRadius: 20,
                               spreadRadius: 2,
                             ),
                           ],
                         ),
                         child: const Icon(
-                          Icons.build_circle_outlined,
-                          size: 64,
-                          color: Color(0xFF00E676),
+                          Icons.build_rounded,
+                          size: 56,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     Text(
                       'MechTech',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.outfit(
-                        fontSize: 36,
+                        fontSize: 34,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'Premium Mechanic Service App',
+                      'Your trusted auto repair partner',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
-                        fontSize: 15,
+                        fontSize: 14,
                         color: const Color(0xFF8B88A5),
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 36),
+
+                    // Role Selection Switch (Customer vs Mechanic)
+                    Container(
+                      height: 56,
+                      padding: const EdgeInsets.all(4.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161426),
+                        borderRadius: BorderRadius.circular(16.0),
+                        border: Border.all(
+                          color: const Color(0xFF302B53).withOpacity(0.5),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Customer Role Button
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedRole = 'customer';
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                decoration: BoxDecoration(
+                                  color: _selectedRole == 'customer'
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      '🚗',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Customer',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: _selectedRole == 'customer'
+                                            ? const Color(0xFF08693F)
+                                            : const Color(0xFF8B88A5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Mechanic Role Button
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedRole = 'mechanic';
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                decoration: BoxDecoration(
+                                  color: _selectedRole == 'mechanic'
+                                      ? Colors.white
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12.0),
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      '🔧',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Mechanic',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: _selectedRole == 'mechanic'
+                                            ? const Color(0xFF08693F)
+                                            : const Color(0xFF8B88A5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
 
                     // Login Card
                     Container(
@@ -162,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Welcome Back',
+                            'Welcome back',
                             style: GoogleFonts.outfit(
                               fontSize: 24,
                               fontWeight: FontWeight.w600,
@@ -171,7 +270,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Please sign in with Google to browse and book professional vehicle services.',
+                            _selectedRole == 'customer'
+                                ? 'Sign in to your MechTech account to book professional vehicle services.'
+                                : 'Sign in as a professional mechanic to manage booking requests and track earnings.',
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               color: const Color(0xFF8B88A5),
@@ -179,7 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 32),
-                          
+
                           if (_isLoading)
                             const Center(
                               child: Padding(
@@ -214,7 +315,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        // Official looking Google Icon representation
                                         Image.network(
                                           'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/48px-Google_%22G%22_logo.svg.png',
                                           height: 24,
@@ -242,9 +342,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              'Signing in as: ${_selectedRole == 'customer' ? 'Customer' : 'Mechanic'}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF00E676),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -255,3 +367,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
