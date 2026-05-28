@@ -34,7 +34,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final appState = Provider.of<AppState>(context, listen: false);
-      _markChatAsRead(appState.role ?? 'customer');
+      _markChatAsRead(appState.userRole ?? 'customer');
     });
   }
 
@@ -83,7 +83,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     final currentUserId = appState.user?.uid;
     final currentUserName = appState.currentCustomerName ?? 'User';
-    final role = appState.role ?? 'customer';
+    final role = appState.userRole ?? 'customer';
 
     if (currentUserId == null) return;
 
