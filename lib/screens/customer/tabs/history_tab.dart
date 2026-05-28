@@ -49,7 +49,7 @@ class HistoryTab extends StatelessWidget {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 24.0, bottom: 100.0),
       itemCount: bookings.length,
       itemBuilder: (context, index) {
         final booking = bookings[index];
