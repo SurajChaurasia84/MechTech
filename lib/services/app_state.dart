@@ -85,6 +85,7 @@ class AppState extends ChangeNotifier {
                     description: '',
                     duration: '',
                     vehicleType: VehicleType.car,
+                    category: '',
                   ),
                 ))
             .toList();
@@ -147,6 +148,7 @@ class AppState extends ChangeNotifier {
                     description: '',
                     duration: '',
                     vehicleType: VehicleType.car,
+                    category: '',
                   ),
                 ))
             .toList();
@@ -331,6 +333,7 @@ class AppState extends ChangeNotifier {
       description: 'Engine oil top-up, filter clean, coolant level check, and 40-point vehicle inspection.',
       duration: '4 hrs',
       vehicleType: VehicleType.car,
+      category: 'Oil Change',
     ),
     const ServiceItem(
       id: 'car_battery',
@@ -339,6 +342,7 @@ class AppState extends ChangeNotifier {
       description: 'High-performance battery replacement with a 36-month warranty and eco-friendly disposal.',
       duration: '1 hr',
       vehicleType: VehicleType.car,
+      category: 'Electrical',
     ),
     const ServiceItem(
       id: 'car_brake',
@@ -347,6 +351,7 @@ class AppState extends ChangeNotifier {
       description: 'Brake pad cleaning, caliper greasing, disc inspection, and brake fluid top-up.',
       duration: '2 hrs',
       vehicleType: VehicleType.car,
+      category: 'Brakes',
     ),
     const ServiceItem(
       id: 'car_engine',
@@ -355,6 +360,7 @@ class AppState extends ChangeNotifier {
       description: 'Spark plug replacement, fuel filter check, throttle body cleaning, and computer diagnostics.',
       duration: '5 hrs',
       vehicleType: VehicleType.car,
+      category: 'Engine',
     ),
     const ServiceItem(
       id: 'car_ac',
@@ -363,6 +369,7 @@ class AppState extends ChangeNotifier {
       description: 'AC gas recharge, filter replacement, leak test, and cabin deodorization.',
       duration: '3 hrs',
       vehicleType: VehicleType.car,
+      category: 'Electrical',
     ),
     const ServiceItem(
       id: 'car_alignment',
@@ -371,6 +378,7 @@ class AppState extends ChangeNotifier {
       description: 'Laser wheel alignment, 3D computer balancing, and tyre rotation.',
       duration: '1.5 hrs',
       vehicleType: VehicleType.car,
+      category: 'Tyre',
     ),
 
     // Bike Services
@@ -381,6 +389,7 @@ class AppState extends ChangeNotifier {
       description: 'Premium engine oil replacement, oil filter replacement, spark plug cleaning, and general check.',
       duration: '1 hr',
       vehicleType: VehicleType.bike,
+      category: 'Oil Change',
     ),
     const ServiceItem(
       id: 'bike_chain',
@@ -389,6 +398,7 @@ class AppState extends ChangeNotifier {
       description: 'High-pressure chain cleaning, rust removal, and premium dry-wax lubrication coating.',
       duration: '30 mins',
       vehicleType: VehicleType.bike,
+      category: 'Tyre',
     ),
     const ServiceItem(
       id: 'bike_brake',
@@ -397,6 +407,7 @@ class AppState extends ChangeNotifier {
       description: 'Front disc pad or rear brake shoe installation, drum cleaning, and lever play adjustment.',
       duration: '45 mins',
       vehicleType: VehicleType.bike,
+      category: 'Brakes',
     ),
     const ServiceItem(
       id: 'bike_engine',
@@ -405,6 +416,7 @@ class AppState extends ChangeNotifier {
       description: 'Carburetor cleaning/fuel-injection scanning, valve clearance setting, and air filter wash.',
       duration: '3 hrs',
       vehicleType: VehicleType.bike,
+      category: 'Engine',
     ),
     const ServiceItem(
       id: 'bike_adjustment',
@@ -413,6 +425,7 @@ class AppState extends ChangeNotifier {
       description: 'Clutch, accelerator, and brake cable inspection, routing adjustment, and lubrication.',
       duration: '20 mins',
       vehicleType: VehicleType.bike,
+      category: 'Engine',
     ),
 
     // EV Services
@@ -423,6 +436,7 @@ class AppState extends ChangeNotifier {
       description: 'Battery state-of-health (SoH) diagnostics, cell voltage balance analysis, and thermal scan.',
       duration: '2 hrs',
       vehicleType: VehicleType.ev,
+      category: 'Electrical',
     ),
     const ServiceItem(
       id: 'ev_wiring',
@@ -431,6 +445,7 @@ class AppState extends ChangeNotifier {
       description: 'High-voltage insulation testing, connector check, and sensor diagnostic scanner run.',
       duration: '1.5 hrs',
       vehicleType: VehicleType.ev,
+      category: 'Electrical',
     ),
     const ServiceItem(
       id: 'ev_braking',
@@ -439,6 +454,7 @@ class AppState extends ChangeNotifier {
       description: 'KERS sensor inspection, electronic caliper configuration, and pad thickness check.',
       duration: '1 hr',
       vehicleType: VehicleType.ev,
+      category: 'Brakes',
     ),
     const ServiceItem(
       id: 'ev_coolant',
@@ -447,6 +463,7 @@ class AppState extends ChangeNotifier {
       description: 'Cooling system pressure test and specialized non-conductive motor coolant replenishment.',
       duration: '1 hr',
       vehicleType: VehicleType.ev,
+      category: 'Electrical',
     ),
     const ServiceItem(
       id: 'ev_transmission',
@@ -455,6 +472,7 @@ class AppState extends ChangeNotifier {
       description: 'Single-speed transmission oil check, motor belt tensioning, and bearing lubrication check.',
       duration: '45 mins',
       vehicleType: VehicleType.ev,
+      category: 'Engine',
     ),
   ];
 
@@ -662,6 +680,8 @@ class AppState extends ChangeNotifier {
     double? latitude,
     double? longitude,
     String? bookingLocation,
+    String? mechanicId,
+    String? mechanicName,
   }) async {
     final name = currentCustomerName;
     if (name == null ||
@@ -684,6 +704,8 @@ class AppState extends ChangeNotifier {
       latitude: latitude,
       longitude: longitude,
       bookingLocation: bookingLocation,
+      mechanicId: mechanicId,
+      mechanicName: mechanicName,
     );
 
     // Save to Firestore first
@@ -700,8 +722,8 @@ class AppState extends ChangeNotifier {
           'totalAmount': newBooking.totalAmount,
           'bookingDate': FieldValue.serverTimestamp(),
           'status': newBooking.status,
-          'mechanicId': null,
-          'mechanicName': null,
+          'mechanicId': mechanicId,
+          'mechanicName': mechanicName,
           'latitude': latitude,
           'longitude': longitude,
           'bookingLocation': bookingLocation,
