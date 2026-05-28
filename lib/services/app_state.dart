@@ -11,6 +11,7 @@ class AppState extends ChangeNotifier {
 
   User? _user;
   bool _isAuthLoading = true; // true until first Firebase auth event resolves
+  String? _userRole; // 'customer' or 'mechanic'
   String? _currentCustomerName; // Fallback for testing/non-firebase
   String? _currentCustomerEmail; // Fallback for testing/non-firebase
   String? _currentCustomerPhone;
@@ -19,6 +20,7 @@ class AppState extends ChangeNotifier {
   String? _selectedVehicleModel;
   final List<ServiceItem> _selectedServices = [];
   final List<ServiceBooking> _bookings = [];
+  final List<ServiceBooking> _allGlobalBookings = [];
 
   // Constructor
   AppState() {
@@ -33,17 +35,26 @@ class AppState extends ChangeNotifier {
             _customerAddress = data?['address'] as String?;
             _currentCustomerName = data?['name'] as String?;
             _currentCustomerEmail = data?['email'] as String?;
+            _userRole = data?['role'] as String?;
           }
+          _userRole ??= 'customer';
         } catch (e) {
           debugPrint("Error loading user profile: $e");
+          _userRole = 'customer';
         }
-        // Load bookings from Firestore
-        await _loadBookingsFromFirestore(user.uid);
+        // Load appropriate bookings/jobs
+        if (_userRole == 'mechanic') {
+          await _loadMechanicJobsFromFirestore();
+        } else {
+          await _loadBookingsFromFirestore(user.uid);
+        }
       } else {
         _currentCustomerPhone = null;
         _customerAddress = null;
         _currentCustomerEmail = null;
+        _userRole = null;
         _bookings.clear();
+        _allGlobalBookings.clear();
       }
       _isAuthLoading = false;
       notifyListeners();
@@ -93,12 +104,17 @@ class AppState extends ChangeNotifier {
 
         _bookings.add(ServiceBooking(
           id: data['id'] as String? ?? doc.id,
-          customerName: _currentCustomerName ?? '',
+          customerName: data['customerName'] as String? ?? _currentCustomerName ?? '',
+          customerId: data['customerId'] as String? ?? uid,
+          customerPhone: data['customerPhone'] as String? ?? _currentCustomerPhone,
+          customerEmail: data['customerEmail'] as String? ?? _currentCustomerEmail,
           vehicleType: vType,
           vehicleModel: data['vehicleModel'] as String? ?? '',
           selectedServices: resolvedServices,
           bookingDate: bookingDate,
           status: data['status'] as String? ?? 'Pending',
+          mechanicId: data['mechanicId'] as String?,
+          mechanicName: data['mechanicName'] as String?,
         ));
       }
     } catch (e) {
@@ -106,9 +122,67 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadMechanicJobsFromFirestore() async {
+    try {
+      final snapshot = await _firestore
+          .collection('bookings')
+          .orderBy('bookingDate', descending: true)
+          .get();
+
+      _allGlobalBookings.clear();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        
+        final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final resolvedServices = rawServices
+            .map((s) => _allServices.firstWhere(
+                  (item) => item.id == s['id'],
+                  orElse: () => ServiceItem(
+                    id: s['id'] as String,
+                    name: s['name'] as String,
+                    price: (s['price'] as num).toDouble(),
+                    description: '',
+                    duration: '',
+                    vehicleType: VehicleType.car,
+                  ),
+                ))
+            .toList();
+
+        VehicleType vType = VehicleType.car;
+        final vTypeStr = data['vehicleType'] as String? ?? 'car';
+        if (vTypeStr == 'bike') vType = VehicleType.bike;
+        if (vTypeStr == 'ev') vType = VehicleType.ev;
+
+        DateTime bookingDate = DateTime.now();
+        final rawDate = data['bookingDate'];
+        if (rawDate != null && rawDate is Timestamp) {
+          bookingDate = rawDate.toDate();
+        }
+
+        _allGlobalBookings.add(ServiceBooking(
+          id: data['id'] as String? ?? doc.id,
+          customerName: data['customerName'] as String? ?? '',
+          customerId: data['customerId'] as String?,
+          customerPhone: data['customerPhone'] as String?,
+          customerEmail: data['customerEmail'] as String?,
+          vehicleType: vType,
+          vehicleModel: data['vehicleModel'] as String? ?? '',
+          selectedServices: resolvedServices,
+          bookingDate: bookingDate,
+          status: data['status'] as String? ?? 'Pending',
+          mechanicId: data['mechanicId'] as String?,
+          mechanicName: data['mechanicName'] as String?,
+        ));
+      }
+    } catch (e) {
+      debugPrint("Error loading mechanic jobs: $e");
+    }
+  }
+
   // Getters
   User? get user => _user;
   bool get isAuthLoading => _isAuthLoading;
+  String? get userRole => _userRole;
   String? get currentCustomerName => _user?.displayName ?? _currentCustomerName;
   String? get currentCustomerEmail => _user?.email ?? _currentCustomerEmail;
   String? get currentCustomerPhone => _currentCustomerPhone;
@@ -119,6 +193,7 @@ class AppState extends ChangeNotifier {
   String? get selectedVehicleModel => _selectedVehicleModel;
   List<ServiceItem> get selectedServices => List.unmodifiable(_selectedServices);
   List<ServiceBooking> get bookings => List.unmodifiable(_bookings);
+  List<ServiceBooking> get allGlobalBookings => List.unmodifiable(_allGlobalBookings);
 
   Future<void> updateUserProfile({required String name, required String email, String? phone}) async {
     _currentCustomerName = name;
@@ -387,7 +462,7 @@ class AppState extends ChangeNotifier {
   }
 
   // Google Sign-In Action
-  Future<bool> signInWithGoogle() async {
+  Future<bool> signInWithGoogle({required String selectedRole}) async {
     try {
       // Trigger the Google Authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -409,15 +484,20 @@ class AppState extends ChangeNotifier {
       final User? firebaseUser = userCredential.user;
 
       if (firebaseUser != null) {
+        String finalRole = selectedRole;
+
         // Save/update user profile in Firestore
         await _firestore.collection('users').doc(firebaseUser.uid).set({
           'uid': firebaseUser.uid,
           'name': firebaseUser.displayName,
           'email': firebaseUser.email,
           'photoUrl': firebaseUser.photoURL,
+          'role': finalRole,
           'lastSignIn': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        _userRole = finalRole;
         return true;
       }
       return false;
@@ -438,14 +518,88 @@ class AppState extends ChangeNotifier {
     _customerAddress = null;
     _selectedVehicleType = null;
     _selectedVehicleModel = null;
+    _userRole = null;
     _selectedServices.clear();
+    _bookings.clear();
+    _allGlobalBookings.clear();
     notifyListeners();
   }
 
   // Local-only Fallback Login (for unit tests/offline debugging)
-  void loginOffline(String name) {
+  void loginOffline(String name, {String role = 'customer'}) {
     _currentCustomerName = name;
+    _userRole = role;
     notifyListeners();
+  }
+
+  // Mechanic Actions
+  Future<void> acceptJob(String bookingId) async {
+    final currentUser = _user;
+    if (currentUser == null) return;
+
+    try {
+      final doc = await _firestore.collection('bookings').doc(bookingId).get();
+      if (!doc.exists) return;
+
+      final data = doc.data()!;
+      final customerId = data['customerId'] as String?;
+
+      final updateData = {
+        'status': 'In Progress',
+        'mechanicId': currentUser.uid,
+        'mechanicName': currentUser.displayName ?? 'Professional Mechanic',
+      };
+
+      // Update global document
+      await _firestore.collection('bookings').doc(bookingId).update(updateData);
+
+      // Update customer document
+      if (customerId != null) {
+        await _firestore
+            .collection('users')
+            .doc(customerId)
+            .collection('bookings')
+            .doc(bookingId)
+            .update(updateData);
+      }
+
+      // Reload jobs
+      await _loadMechanicJobsFromFirestore();
+    } catch (e) {
+      debugPrint("Error accepting job: $e");
+    }
+  }
+
+  Future<void> completeJob(String bookingId) async {
+    try {
+      final doc = await _firestore.collection('bookings').doc(bookingId).get();
+      if (!doc.exists) return;
+
+      final data = doc.data()!;
+      final customerId = data['customerId'] as String?;
+
+      final updateData = {
+        'status': 'Completed',
+      };
+
+      // Update global document
+      await _firestore.collection('bookings').doc(bookingId).update(updateData);
+
+      // Update customer document
+      if (customerId != null) {
+        await _firestore
+            .collection('users')
+            .doc(customerId)
+            .collection('bookings')
+            .doc(bookingId)
+            .update(updateData);
+      }
+
+      // Reload jobs
+      await _loadMechanicJobsFromFirestore();
+    } catch (e) {
+      debugPrint("Error completing job: $e");
+    }
   }
 
   void selectVehicleType(VehicleType type) {
@@ -487,6 +641,9 @@ class AppState extends ChangeNotifier {
     final newBooking = ServiceBooking(
       id: 'MT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
       customerName: name,
+      customerId: _user?.uid,
+      customerPhone: _currentCustomerPhone,
+      customerEmail: currentCustomerEmail,
       vehicleType: _selectedVehicleType!,
       vehicleModel: _selectedVehicleModel!,
       selectedServices: List.from(_selectedServices),
@@ -496,22 +653,38 @@ class AppState extends ChangeNotifier {
     // Save to Firestore first
     if (_user != null) {
       try {
-        await _firestore
-            .collection('users')
-            .doc(_user!.uid)
-            .collection('bookings')
-            .doc(newBooking.id)
-            .set({
+        final bookingData = {
           'id': newBooking.id,
+          'customerId': _user!.uid,
+          'customerName': name,
+          'customerPhone': _currentCustomerPhone,
+          'customerEmail': currentCustomerEmail,
           'vehicleType': _selectedVehicleType!.name,
           'vehicleModel': _selectedVehicleModel,
           'totalAmount': newBooking.totalAmount,
           'bookingDate': FieldValue.serverTimestamp(),
           'status': newBooking.status,
+          'mechanicId': null,
+          'mechanicName': null,
           'services': _selectedServices
               .map((s) => {'id': s.id, 'name': s.name, 'price': s.price})
               .toList(),
-        });
+        };
+
+        // Write to customer's subcollection
+        await _firestore
+            .collection('users')
+            .doc(_user!.uid)
+            .collection('bookings')
+            .doc(newBooking.id)
+            .set(bookingData);
+
+        // Write to global root bookings collection
+        await _firestore
+            .collection('bookings')
+            .doc(newBooking.id)
+            .set(bookingData);
+
         // Reload from Firestore so history is consistent
         await _loadBookingsFromFirestore(_user!.uid);
       } catch (e) {
