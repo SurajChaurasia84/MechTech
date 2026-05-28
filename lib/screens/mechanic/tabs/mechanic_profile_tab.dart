@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../services/app_state.dart';
+import '../../customer/edit_profile_screen.dart';
+import '../manage_service_screen.dart';
+
+class MechanicProfileTab extends StatelessWidget {
+  const MechanicProfileTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final name = appState.currentCustomerName ?? 'Professional Mechanic';
+    final email = appState.currentCustomerEmail ?? 'No email associated';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 24.0, bottom: 100.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Profile Detail Card
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 46,
+                  backgroundColor: const Color(0xFF161426),
+                  backgroundImage: appState.currentCustomerPhotoUrl != null
+                      ? NetworkImage(appState.currentCustomerPhotoUrl!)
+                      : null,
+                  child: appState.currentCustomerPhotoUrl == null
+                      ? const Icon(Icons.person, color: Color(0xFF00E676), size: 46)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: const Color(0xFF8B88A5),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00B0FF).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF00B0FF).withOpacity(0.4)),
+                  ),
+                  child: Text(
+                    'Professional Mechanic',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF00B0FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Actions List
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161426),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF302B53).withOpacity(0.5),
+                width: 1.2,
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildProfileListItem(
+                  icon: Icons.person_2_outlined,
+                  title: 'Edit Profile',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const EditProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.handyman_outlined,
+                  title: 'Manage Service Profile',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ManageServiceScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.help_outline_rounded,
+                  title: 'Help & Support',
+                  onTap: () async {
+                    final Uri emailUri = Uri(
+                      scheme: 'mailto',
+                      path: '1shreejee1@gmail.com',
+                      queryParameters: {'subject': 'MechTech Mechanic Support'},
+                    );
+                    try {
+                      await launchUrl(emailUri);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open email app.')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'Privacy Policy',
+                  onTap: () async {
+                    final Uri url = Uri.parse('https://surajchaurasia84.github.io/MechTech/');
+                    try {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open browser.')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.share_outlined,
+                  title: 'Share App',
+                  onTap: () {
+                    Share.share(
+                      'Check out MechTech - the premium mechanic service app! Download now: https://play.google.com/store/apps/details?id=com.mechtech.mechanic.apps',
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
+                _buildProfileListItem(
+                  icon: Icons.logout_rounded,
+                  title: 'Log Out',
+                  titleColor: Colors.redAccent,
+                  iconColor: Colors.redAccent,
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          backgroundColor: const Color(0xFF161426),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
+                          ),
+                          title: Text(
+                            'Log Out',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          content: Text(
+                            'Are you sure you want to log out of your account?',
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF8B88A5),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF8B88A5),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                appState.logout();
+                              },
+                              child: Text(
+                                'Log Out',
+                                style: GoogleFonts.inter(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          Column(
+            children: [
+              Text(
+                'MechTech',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withOpacity(0.7),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Version 1.0.0 (1)',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: const Color(0xFF8B88A5).withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '© 2026 MechTech. All rights reserved.',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: const Color(0xFF8B88A5).withOpacity(0.5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileListItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color titleColor = Colors.white,
+    Color iconColor = const Color(0xFF8B88A5),
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: iconColor),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(color: titleColor, fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF535072)),
+      onTap: onTap,
+    );
+  }
+}
