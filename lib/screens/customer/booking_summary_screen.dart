@@ -13,13 +13,19 @@ class BookingSummaryScreen extends StatefulWidget {
 
 class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   bool _isSuccess = false;
+  bool _isLoading = false;
   ServiceBooking? _bookingResult;
 
-  void _bookService(AppState appState) {
-    setState(() {
-      _bookingResult = appState.submitBooking();
-      _isSuccess = _bookingResult != null;
-    });
+  Future<void> _bookService(AppState appState) async {
+    setState(() => _isLoading = true);
+    final result = await appState.submitBooking();
+    if (mounted) {
+      setState(() {
+        _bookingResult = result;
+        _isSuccess = result != null;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -249,12 +255,14 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                     height: 56,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00E676), Color(0xFF00B0FF)],
+                      gradient: LinearGradient(
+                        colors: _isLoading
+                            ? [const Color(0xFF444444), const Color(0xFF444444)]
+                            : [const Color(0xFF00E676), const Color(0xFF00B0FF)],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00E676).withOpacity(0.3),
+                          color: const Color(0xFF00E676).withOpacity(_isLoading ? 0 : 0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 5),
                         )
@@ -264,17 +272,26 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
-                        onTap: () => _bookService(appState),
+                        onTap: _isLoading ? null : () => _bookService(appState),
                         child: Center(
-                          child: Text(
-                            'Book Now',
-                            style: GoogleFonts.outfit(
-                              color: const Color(0xFF0D0B18),
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Book Now',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFF0D0B18),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                         ),
                       ),
                     ),
