@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/service_model.dart';
 import '../../../services/app_state.dart';
 import '../service_selection_screen.dart';
@@ -17,45 +18,144 @@ class HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<HomeTab> {
   String? _selectedModel;
+  bool _isLoading = false;
 
-  final List<Map<String, dynamic>> _popularServices = [
-    {'name': 'Oil Change', 'icon': Icons.opacity_rounded, 'filter': 'Oil Change'},
-    {'name': 'Tyre', 'icon': Icons.adjust_rounded, 'filter': 'Tyre'},
-    {'name': 'Electrical', 'icon': Icons.bolt_rounded, 'filter': 'Electrical'},
-    {'name': 'Repair', 'icon': Icons.handyman_rounded, 'filter': 'Engine'},
-    {'name': 'AC', 'icon': Icons.ac_unit_rounded, 'filter': 'Brakes'},
-  ];
+  final List<Map<String, dynamic>> _popularServices = [];
+  final List<Map<String, dynamic>> _serviceCategories = [];
 
-  final List<Map<String, dynamic>> _serviceCategories = [
-    {
-      'name': 'Engine Repair',
-      'price': '₹499/hr',
-      'desc': 'Diagnostics, overhaul',
-      'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300',
-      'filter': 'Engine',
-    },
-    {
-      'name': 'Tyre Service',
+  final Map<String, Map<String, dynamic>> _categoryMeta = {
+    'Oil Change': {
+      'icon': Icons.opacity_rounded,
+      'desc': 'Engine oil and filter change',
       'price': '₹199/hr',
-      'desc': 'Rotation, balancing',
-      'image': 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?q=80&w=300',
-      'filter': 'Tyre',
+      'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
     },
-    {
-      'name': 'Brake Service',
+    'Tyre': {
+      'icon': Icons.adjust_rounded,
+      'desc': 'Rotation, balancing & alignment',
+      'price': '₹199/hr',
+      'image': 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?q=80&w=300'
+    },
+    'Electrical': {
+      'icon': Icons.bolt_rounded,
+      'desc': 'Battery and wiring diagnostics',
+      'price': '₹399/hr',
+      'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
+    },
+    'Engine': {
+      'icon': Icons.handyman_rounded,
+      'desc': 'Diagnostics and engine overhauls',
+      'price': '₹499/hr',
+      'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
+    },
+    'Brakes': {
+      'icon': Icons.album_rounded,
+      'desc': 'Pads, rotors, and fluid flush',
       'price': '₹349/hr',
-      'desc': 'Pads, rotors, fluid',
-      'image': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=300',
-      'filter': 'Brakes',
+      'image': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=300'
     },
-    {
-      'name': 'Full Detail',
-      'price': '₹799',
-      'desc': 'Interior + exterior',
-      'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300',
-      'filter': 'All',
+    'AC': {
+      'icon': Icons.ac_unit_rounded,
+      'desc': 'AC gas refill and servicing',
+      'price': '₹299/hr',
+      'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
     },
-  ];
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadActiveCategories();
+  }
+
+  Future<void> _loadActiveCategories() async {
+    setState(() => _isLoading = true);
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'mechanic')
+          .get();
+
+      final Set<String> activeCats = {};
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final cats = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+        activeCats.addAll(cats.where((c) => c != 'All'));
+      }
+
+      final List<Map<String, dynamic>> newPopular = [];
+      final List<Map<String, dynamic>> newCategories = [];
+
+      for (final cat in activeCats) {
+        final meta = _categoryMeta[cat] ?? {
+          'icon': Icons.handyman_rounded,
+          'desc': 'General vehicle service',
+          'price': '₹299/hr',
+          'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
+        };
+
+        newPopular.add({
+          'name': cat,
+          'icon': meta['icon'] as IconData,
+          'filter': cat,
+        });
+
+        newCategories.add({
+          'name': cat,
+          'price': meta['price'] as String,
+          'desc': meta['desc'] as String,
+          'image': meta['image'] as String,
+          'filter': cat,
+        });
+      }
+
+      setState(() {
+        _popularServices.clear();
+        _popularServices.addAll(newPopular);
+        _serviceCategories.clear();
+        _serviceCategories.addAll(newCategories);
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error loading categories: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildNoServicesPlaceholder() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161426),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF302B53), width: 1.2),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.build_circle_outlined, color: Color(0xFF00B0FF), size: 40),
+          const SizedBox(height: 12),
+          Text(
+            'No Registered Mechanics Yet',
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Active mechanics have not registered any specialties. Switch to the Mechanic panel to register a service profile and post specialties!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: const Color(0xFF8B88A5),
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,54 +257,58 @@ class _HomeTabState extends State<HomeTab> {
             ),
             const SizedBox(height: 8),
             // Horizontal list of services
-            SizedBox(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _popularServices.length,
-                itemBuilder: (context, index) {
-                  final service = _popularServices[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 16.0),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => FindMechanicScreen(initialFilter: service['filter']),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF161426),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF302B53), width: 1.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                )
-                              ],
-                            ),
-                            child: Icon(service['icon'], color: const Color(0xFF00E676), size: 24),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            service['name'],
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                          )
-                        ],
+            _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E676)))
+                : _popularServices.isEmpty
+                    ? _buildNoServicesPlaceholder()
+                    : SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _popularServices.length,
+                          itemBuilder: (context, index) {
+                            final service = _popularServices[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => FindMechanicScreen(initialFilter: service['filter']),
+                                    ),
+                                  );
+                                },
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF161426),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: const Color(0xFF302B53), width: 1.2),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.2),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          )
+                                        ],
+                                      ),
+                                      child: Icon(service['icon'], color: const Color(0xFF00E676), size: 24),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      service['name'],
+                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
             const SizedBox(height: 16),
 
             // Service Categories Grid (Image 3 mockup style)
@@ -234,104 +338,106 @@ class _HomeTabState extends State<HomeTab> {
             ),
             const SizedBox(height: 8),
             // Grid of categories
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: _serviceCategories.length,
-              itemBuilder: (context, index) {
-                final cat = _serviceCategories[index];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FindMechanicScreen(initialFilter: cat['filter']),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF161426),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF302B53), width: 1.2),
+            _isLoading || _serviceCategories.isEmpty
+                ? const SizedBox.shrink()
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 0.85,
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Image part
-                        Expanded(
-                          child: Stack(
-                            fit: StackFit.expand,
+                    itemCount: _serviceCategories.length,
+                    itemBuilder: (context, index) {
+                      final cat = _serviceCategories[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FindMechanicScreen(initialFilter: cat['filter']),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF161426),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF302B53), width: 1.2),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Image.network(
-                                cat['image'],
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: const Color(0xFF0D0B18),
-                                    child: const Icon(Icons.image_outlined, color: Color(0xFF8B88A5)),
-                                  );
-                                },
-                              ),
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF00E676),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    cat['price'],
-                                    style: GoogleFonts.outfit(
-                                      color: const Color(0xFF0D0B18),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                              // Image part
+                              Expanded(
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.network(
+                                      cat['image'],
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: const Color(0xFF0D0B18),
+                                          child: const Icon(Icons.image_outlined, color: Color(0xFF8B88A5)),
+                                        );
+                                      },
                                     ),
-                                  ),
+                                    Positioned(
+                                      top: 8,
+                                      left: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF00E676),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          cat['price'],
+                                          style: GoogleFonts.outfit(
+                                            color: const Color(0xFF0D0B18),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              ),
+                              // Label part
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      cat['name'],
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      cat['desc'],
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: const Color(0xFF8B88A5),
+                                      ),
+                                    )
+                                  ],
                                 ),
                               )
                             ],
                           ),
                         ),
-                        // Label part
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                cat['name'],
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                cat['desc'],
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF8B88A5),
-                                ),
-                              )
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
             const SizedBox(height: 36),
 
             // Vehicle Selector Card (Preserved functional booking selector)
