@@ -525,6 +525,29 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Switch User Role
+  Future<void> switchUserRole(String newRole) async {
+    final uid = _user?.uid;
+    if (uid == null) return;
+
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'role': newRole,
+      });
+      _userRole = newRole;
+
+      // Load appropriate bookings/jobs after role switch
+      if (_userRole == 'mechanic') {
+        await _loadMechanicJobsFromFirestore();
+      } else {
+        await _loadBookingsFromFirestore(uid);
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error switching user role: $e");
+    }
+  }
+
   // Local-only Fallback Login (for unit tests/offline debugging)
   void loginOffline(String name, {String role = 'customer'}) {
     _currentCustomerName = name;
