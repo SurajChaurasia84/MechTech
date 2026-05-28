@@ -59,11 +59,24 @@ class MainGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    
-    if (appState.currentCustomerName == null) {
-      return const LoginScreen();
-    } else {
+
+    // Still resolving Firebase auth state — show splash to avoid login screen flash
+    if (appState.isAuthLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0D0B18),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF00E676),
+            strokeWidth: 2.5,
+          ),
+        ),
+      );
+    }
+
+    if (appState.user != null) {
       return const CustomerDashboard();
+    } else {
+      return const LoginScreen();
     }
   }
 }
