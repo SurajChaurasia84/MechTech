@@ -4,9 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/app_state.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'dart:convert';
+import '../../models/service_model.dart';
 
 class ManageServiceScreen extends StatefulWidget {
-  const ManageServiceScreen({super.key});
+  final JobPost? existingPost;
+  const ManageServiceScreen({super.key, this.existingPost});
 
   @override
   State<ManageServiceScreen> createState() => _ManageServiceScreenState();
@@ -14,6 +18,7 @@ class ManageServiceScreen extends StatefulWidget {
 
 class _ManageServiceScreenState extends State<ManageServiceScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
   final _rateController = TextEditingController();
   final _expController = TextEditingController();
   final _bioController = TextEditingController();
@@ -22,7 +27,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   bool _isLoading = false;
   bool _isFetchingLocation = false;
   
-  final List<String> _availableCategories = ['Oil Change', 'Engine', 'Brakes', 'Tyre', 'Electrical', 'AC'];
+  final List<String> _availableCategories = ['Oil Change', 'Engine', 'Brakes', 'Tyre', 'Electrical'];
   final List<String> _selectedCategories = [];
 
   final List<String> _availableTags = ['#petrol', '#diesel', '#ev', '#4x4', '#suv'];
@@ -38,6 +43,41 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   }
 
   Future<void> _loadCurrentServiceProfile() async {
+    if (widget.existingPost != null) {
+      final post = widget.existingPost!;
+      _titleController.text = post.title;
+      
+      final rawRate = post.rate;
+      final rateMatch = RegExp(r'\d+').firstMatch(rawRate);
+      _rateController.text = rateMatch != null ? rateMatch.group(0)! : '';
+
+      final rawExp = post.experience;
+      final expMatch = RegExp(r'\d+').firstMatch(rawExp);
+      _expController.text = expMatch != null ? expMatch.group(0)! : '';
+
+      var rawBio = post.desc;
+      if (rawBio.startsWith('"') && rawBio.endsWith('"')) {
+        rawBio = rawBio.substring(1, rawBio.length - 1);
+      }
+      _bioController.text = rawBio;
+
+      var rawLocation = post.location;
+      if (rawLocation.startsWith('Works in ')) {
+        rawLocation = rawLocation.substring(9);
+      }
+      _locationController.text = rawLocation;
+
+      _selectedCategories.clear();
+      _selectedCategories.addAll(post.categories);
+
+      _selectedTags.clear();
+      _selectedTags.addAll(post.tags);
+
+      _latitude = post.latitude;
+      _longitude = post.longitude;
+      return;
+    }
+
     final appState = context.read<AppState>();
     final uid = appState.user?.uid;
     if (uid == null) return;
@@ -79,6 +119,10 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         }
         _locationController.text = rawLocation;
 
+        if (rawLocation.trim().isEmpty) {
+          _fetchLocation();
+        }
+
         // Load Categories
         final cats = data['categories'] as List<dynamic>? ?? [];
         _selectedCategories.clear();
@@ -105,54 +149,120 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
     double? lat;
     double? lon;
-    String locSuffix = '';
+    String resolvedAddress = '';
 
     try {
-      // Prompt GPS permission and get coordinates
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (serviceEnabled) {
-        LocationPermission permission = await Geolocator.checkPermission();
+      if (!serviceEnabled) {
+        throw 'Location services are disabled.';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
+          throw 'Location permissions are denied.';
         }
-        if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-          Position position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 4),
-          );
-          lat = position.latitude;
-          lon = position.longitude;
-          locSuffix = ' (GPS Verified)';
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Location permissions are permanently denied.';
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 4),
+      );
+
+      lat = position.latitude;
+      lon = position.longitude;
+
+      // Reverse geocoding via Nominatim
+      try {
+        final client = HttpClient();
+        client.userAgent = 'MechTechApp/1.0';
+        final request = await client.getUrl(Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1'
+        ));
+        final response = await request.close();
+        
+        if (response.statusCode == 200) {
+          final content = await response.transform(utf8.decoder).join();
+          final Map<String, dynamic> data = jsonDecode(content);
+          final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
+
+          if (address != null) {
+            final road = address['road'] ?? '';
+            final neighbourhood = address['neighbourhood'] ?? '';
+            final suburb = address['suburb'] ?? '';
+            final cityDistrict = address['city_district'] ?? '';
+            final village = address['village'] ?? '';
+            final town = address['town'] ?? '';
+            final city = address['city'] ?? address['state'] ?? '';
+
+            final List<String> areaParts = [];
+            
+            // 1. Add specific road/street if available
+            if (road.toString().isNotEmpty) {
+              areaParts.add(road.toString());
+            }
+            
+            // 2. Add suburb/neighbourhood/district/village
+            final localArea = suburb.toString().isNotEmpty 
+                ? suburb.toString() 
+                : (neighbourhood.toString().isNotEmpty 
+                    ? neighbourhood.toString() 
+                    : (cityDistrict.toString().isNotEmpty 
+                        ? cityDistrict.toString() 
+                        : village.toString()));
+                        
+            if (localArea.isNotEmpty && !areaParts.contains(localArea)) {
+              areaParts.add(localArea);
+            }
+            
+            // 3. Add town or city
+            final cityStr = city.toString().isNotEmpty ? city.toString() : town.toString();
+            if (cityStr.isNotEmpty && !areaParts.contains(cityStr)) {
+              areaParts.add(cityStr);
+            }
+            
+            resolvedAddress = areaParts.join(', ');
+          }
         }
+      } catch (_) {}
+
+      if (resolvedAddress.isEmpty) {
+        resolvedAddress = 'Bengaluru (GPS Verified)';
+      }
+      
+      setState(() {
+        _locationController.text = resolvedAddress;
+        _latitude = lat;
+        _longitude = lon;
+        _isFetchingLocation = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location resolved: $resolvedAddress'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFF00E676),
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Gps fetch error: $e");
-    }
-
-    final mockLocations = [
-      {'name': 'Koramangala, Bengaluru', 'lat': 12.9352, 'lon': 77.6244},
-      {'name': 'Indiranagar, Bengaluru', 'lat': 12.9719, 'lon': 77.6412},
-      {'name': 'HSR Layout, Bengaluru', 'lat': 12.9121, 'lon': 77.6446},
-      {'name': 'Whitefield, Bengaluru', 'lat': 12.9698, 'lon': 77.7500},
-      {'name': 'Jayanagar, Bengaluru', 'lat': 12.9308, 'lon': 77.5838},
-    ];
-    mockLocations.shuffle();
-    final selected = mockLocations.first;
-
-    setState(() {
-      _locationController.text = '${selected['name']}$locSuffix';
-      _latitude = lat ?? selected['lat'] as double;
-      _longitude = lon ?? selected['lon'] as double;
-      _isFetchingLocation = false;
-    });
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Location updated to: ${_locationController.text}'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      setState(() => _isFetchingLocation = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resolve GPS coordinates: $e. Please type your location manually.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -173,6 +283,40 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
           ? 'Works in ${_locationController.text.trim()}'
           : 'Works in Bengaluru';
 
+      final postId = widget.existingPost?.id ?? 'JP-${DateTime.now().millisecondsSinceEpoch}';
+
+      final postData = {
+        'id': postId,
+        'mechanicId': uid,
+        'mechanicName': appState.currentCustomerName ?? 'Specialist Mechanic',
+        'mechanicPhotoUrl': appState.currentCustomerPhotoUrl ?? '',
+        'title': _titleController.text.trim(),
+        'rate': rateStr,
+        'experience': expStr,
+        'desc': bioStr,
+        'location': locStr,
+        'categories': _selectedCategories,
+        'tags': _selectedTags,
+        'latitude': _latitude,
+        'longitude': _longitude,
+        'createdAt': widget.existingPost?.createdAt ?? FieldValue.serverTimestamp(),
+      };
+
+      // 1. Save to user's subcollection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('job_posts')
+          .doc(postId)
+          .set(postData, SetOptions(merge: true));
+
+      // 2. Save to global root collection
+      await FirebaseFirestore.instance
+          .collection('job_posts')
+          .doc(postId)
+          .set(postData, SetOptions(merge: true));
+
+      // 3. Fallback update primary user document
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'rate': rateStr,
         'experience': expStr,
@@ -217,7 +361,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF161426),
         title: Text(
-          'Manage Service Profile',
+          widget.existingPost != null ? 'Edit Job Post' : 'Create Job Post',
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
         leading: IconButton(
@@ -234,6 +378,16 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _buildTextField(
+                      controller: _titleController,
+                      label: 'Job Post Title',
+                      hint: 'e.g. Brake & Oil Change Expert',
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Job title is required';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
                     // Price & Experience row
                     Row(
                       children: [
@@ -304,10 +458,23 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                               controller: _locationController,
                               style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
                               decoration: InputDecoration(
-                                hintText: 'Fetching location...',
+                                hintText: _isFetchingLocation ? 'Fetching location...' : 'Enter location or tap GPS',
                                 hintStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5)),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 border: InputBorder.none,
+                                suffixIcon: _isFetchingLocation
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(12.0),
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Color(0xFF00B0FF),
+                                          ),
+                                        ),
+                                      )
+                                    : null,
                               ),
                               validator: (val) {
                                 if (val == null || val.trim().isEmpty) return 'Location required';
@@ -330,29 +497,28 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                               onTap: _isFetchingLocation ? null : _fetchLocation,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                                child: _isFetchingLocation
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Color(0xFF00B0FF),
-                                        ),
-                                      )
-                                    : Row(
-                                        children: [
-                                          const Icon(Icons.my_location_rounded, color: Color(0xFF00B0FF), size: 16),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'GPS',
-                                            style: GoogleFonts.outfit(
-                                              color: const Color(0xFF00B0FF),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            ),
-                                          )
-                                        ],
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.my_location_rounded,
+                                      color: _isFetchingLocation
+                                          ? const Color(0xFF00B0FF).withValues(alpha: 0.5)
+                                          : const Color(0xFF00B0FF),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'GPS',
+                                      style: GoogleFonts.outfit(
+                                        color: _isFetchingLocation
+                                            ? const Color(0xFF00B0FF).withValues(alpha: 0.5)
+                                            : const Color(0xFF00B0FF),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
                                       ),
+                                    )
+                                  ],
+                                ),
                               ),
                             ),
                           ),
