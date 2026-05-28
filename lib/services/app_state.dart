@@ -115,6 +115,9 @@ class AppState extends ChangeNotifier {
           status: data['status'] as String? ?? 'Pending',
           mechanicId: data['mechanicId'] as String?,
           mechanicName: data['mechanicName'] as String?,
+          latitude: (data['latitude'] as num?)?.toDouble(),
+          longitude: (data['longitude'] as num?)?.toDouble(),
+          bookingLocation: data['bookingLocation'] as String?,
         ));
       }
     } catch (e) {
@@ -172,6 +175,9 @@ class AppState extends ChangeNotifier {
           status: data['status'] as String? ?? 'Pending',
           mechanicId: data['mechanicId'] as String?,
           mechanicName: data['mechanicName'] as String?,
+          latitude: (data['latitude'] as num?)?.toDouble(),
+          longitude: (data['longitude'] as num?)?.toDouble(),
+          bookingLocation: data['bookingLocation'] as String?,
         ));
       }
     } catch (e) {
@@ -652,7 +658,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<ServiceBooking?> submitBooking() async {
+  Future<ServiceBooking?> submitBooking({
+    double? latitude,
+    double? longitude,
+    String? bookingLocation,
+  }) async {
     final name = currentCustomerName;
     if (name == null ||
         _selectedVehicleType == null ||
@@ -671,6 +681,9 @@ class AppState extends ChangeNotifier {
       vehicleModel: _selectedVehicleModel!,
       selectedServices: List.from(_selectedServices),
       bookingDate: DateTime.now(),
+      latitude: latitude,
+      longitude: longitude,
+      bookingLocation: bookingLocation,
     );
 
     // Save to Firestore first
@@ -689,6 +702,9 @@ class AppState extends ChangeNotifier {
           'status': newBooking.status,
           'mechanicId': null,
           'mechanicName': null,
+          'latitude': latitude,
+          'longitude': longitude,
+          'bookingLocation': bookingLocation,
           'services': _selectedServices
               .map((s) => {'id': s.id, 'name': s.name, 'price': s.price})
               .toList(),
