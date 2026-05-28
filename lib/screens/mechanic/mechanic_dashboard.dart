@@ -5,6 +5,8 @@ import 'tabs/mechanic_earnings_tab.dart';
 import 'tabs/mechanic_profile_tab.dart';
 import 'tabs/mechanic_messages_tab.dart';
 import 'manage_service_screen.dart';
+import 'package:provider/provider.dart';
+import '../../services/app_state.dart';
 
 class MechanicDashboard extends StatefulWidget {
   const MechanicDashboard({super.key});
@@ -39,6 +41,14 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
             ),
           ),
           automaticallyImplyLeading: false, // Don't show back button for top level dashboard
+          actions: [
+            if (_currentIndex == 3)
+              IconButton(
+                icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
+                tooltip: 'Switch Profile Role',
+                onPressed: () => _showRoleSwitchDialog(context),
+              ),
+          ],
         ),
         body: _buildBody(),
         extendBody: true,
@@ -217,5 +227,216 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  void _showRoleSwitchDialog(BuildContext context) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    final currentRole = appState.userRole ?? 'customer';
+    String tempSelectedRole = currentRole;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF161426),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
+              ),
+              title: Text(
+                'Switch Profile Role',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Select which panel role you want to switch to:',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF8B88A5),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Customer Choice Card
+                  InkWell(
+                    onTap: () {
+                      setDialogState(() {
+                        tempSelectedRole = 'customer';
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: tempSelectedRole == 'customer'
+                            ? const Color(0xFF00E676).withOpacity(0.08)
+                            : const Color(0xFF0D0B18),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: tempSelectedRole == 'customer'
+                              ? const Color(0xFF00E676)
+                              : const Color(0xFF302B53),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person_rounded,
+                            color: tempSelectedRole == 'customer'
+                                ? const Color(0xFF00E676)
+                                : const Color(0xFF8B88A5),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Customer Panel',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  'Book services and find mechanics.',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF8B88A5),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (tempSelectedRole == 'customer')
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF00E676)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Mechanic Choice Card
+                  InkWell(
+                    onTap: () {
+                      setDialogState(() {
+                        tempSelectedRole = 'mechanic';
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: tempSelectedRole == 'mechanic'
+                            ? const Color(0xFF00B0FF).withOpacity(0.08)
+                            : const Color(0xFF0D0B18),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: tempSelectedRole == 'mechanic'
+                              ? const Color(0xFF00B0FF)
+                              : const Color(0xFF302B53),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.build_rounded,
+                            color: tempSelectedRole == 'mechanic'
+                                ? const Color(0xFF00B0FF)
+                                : const Color(0xFF8B88A5),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mechanic Panel',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  'Manage bookings and view earnings.',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF8B88A5),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (tempSelectedRole == 'mechanic')
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF00B0FF)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF8B88A5),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    if (tempSelectedRole != currentRole) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Switching roles...'),
+                            ],
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+
+                      await appState.switchUserRole(tempSelectedRole);
+                    }
+                  },
+                  child: Text(
+                    'Switch',
+                    style: GoogleFonts.inter(
+                      color: tempSelectedRole == 'customer'
+                          ? const Color(0xFF00E676)
+                          : const Color(0xFF00B0FF),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }
