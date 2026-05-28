@@ -6,6 +6,8 @@ import '../../services/app_state.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/profile_tab.dart';
+import 'tabs/messages_tab.dart';
+import 'find_mechanic_screen.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -38,96 +40,200 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         }
       },
       child: Scaffold(
-      backgroundColor: const Color(0xFF0D0B18),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF161426),
-        elevation: 0,
-        title: Row(
-          children: [
-            if (_currentIndex == 0) ...[
-              Image.asset(
-                'assets/icon.png',
-                height: 28,
-                width: 28,
-              ),
-              const SizedBox(width: 10),
-            ],
-            Text(
-              _getAppBarTitle(),
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Background soft glows for aesthetic depth
-          Positioned(
-            top: 40,
-            left: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accentColor.withOpacity(0.08),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(0.08),
-                    blurRadius: 60,
-                    spreadRadius: 30,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Switch between Tabs based on current index
-          _buildBody(),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: const Color(0xFF302B53).withOpacity(0.6),
-              width: 1.5,
-            ),
-          ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+        backgroundColor: const Color(0xFF0D0B18),
+        appBar: AppBar(
           backgroundColor: const Color(0xFF161426),
-          selectedItemColor: const Color(0xFF00E676),
-          unselectedItemColor: const Color(0xFF8B88A5),
-          selectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
-          unselectedLabelStyle: GoogleFonts.inter(fontSize: 12),
-          type: BottomNavigationBarType.fixed,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
+          elevation: 0,
+          title: Row(
+            children: [
+              if (_currentIndex == 0) ...[
+                const Icon(
+                  Icons.build_rounded,
+                  color: Color(0xFF00E676),
+                  size: 24,
+                ),
+                const SizedBox(width: 10),
+              ],
+              Text(
+                _getAppBarTitle(),
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
+              ),
+            ],
+          ),
+          automaticallyImplyLeading: false,
+        ),
+        body: Stack(
+          children: [
+            // Background soft glows for aesthetic depth
+            Positioned(
+              top: 40,
+              left: -50,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accentColor.withOpacity(0.08),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accentColor.withOpacity(0.08),
+                      blurRadius: 60,
+                      spreadRadius: 30,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history_outlined),
-              activeIcon: Icon(Icons.history),
-              label: 'History',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
+            
+            // Switch between Tabs based on current index
+            _buildBody(),
           ],
         ),
-      ),
-    ), // Scaffold
+        extendBody: true, // Let body extend behind BottomAppBar for notch look
+        bottomNavigationBar: BottomAppBar(
+          color: const Color(0xFF161426),
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 8.0,
+          clipBehavior: Clip.antiAlias,
+          padding: EdgeInsets.zero,
+          child: Container(
+            height: 60,
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: const Color(0xFF302B53).withOpacity(0.4),
+                  width: 1.0,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                // Home button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = 0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _currentIndex == 0 ? Icons.home_rounded : Icons.home_outlined,
+                          color: _currentIndex == 0 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Home',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: _currentIndex == 0 ? FontWeight.bold : FontWeight.normal,
+                            color: _currentIndex == 0 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Bookings button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = 1),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _currentIndex == 1 ? Icons.assignment_turned_in_rounded : Icons.assignment_turned_in_outlined,
+                          color: _currentIndex == 1 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Bookings',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: _currentIndex == 1 ? FontWeight.bold : FontWeight.normal,
+                            color: _currentIndex == 1 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Empty space for FloatingActionButton
+                const SizedBox(width: 48),
+                // Messages button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = 2),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _currentIndex == 2 ? Icons.forum_rounded : Icons.forum_outlined,
+                          color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Messages',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: _currentIndex == 2 ? FontWeight.bold : FontWeight.normal,
+                            color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Profile button
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _currentIndex == 3 ? Icons.person_rounded : Icons.person_outline_rounded,
+                          color: _currentIndex == 3 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Profile',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: _currentIndex == 3 ? FontWeight.bold : FontWeight.normal,
+                            color: _currentIndex == 3 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        floatingActionButton: Container(
+          height: 60,
+          width: 60,
+          child: FloatingActionButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const FindMechanicScreen(),
+                ),
+              );
+            },
+            shape: const CircleBorder(),
+            backgroundColor: const Color(0xFF08693F), // Rich green brand color
+            elevation: 8.0,
+            child: const Icon(
+              Icons.add_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      ), // Scaffold
     ); // PopScope
   }
 
@@ -138,6 +244,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       case 1:
         return 'Booking History';
       case 2:
+        return 'Messages';
+      case 3:
         return 'My Profile';
       default:
         return 'MechTech';
@@ -151,6 +259,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       case 1:
         return const HistoryTab();
       case 2:
+        return const MessagesTab();
+      case 3:
         return const ProfileTab();
       default:
         return const SizedBox.shrink();
