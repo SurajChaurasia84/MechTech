@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/app_state.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ManageServiceScreen extends StatefulWidget {
   const ManageServiceScreen({super.key});
@@ -26,6 +27,9 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
   final List<String> _availableTags = ['#petrol', '#diesel', '#ev', '#4x4', '#suv'];
   final List<String> _selectedTags = [];
+
+  double? _latitude;
+  double? _longitude;
 
   @override
   void initState() {
@@ -84,6 +88,10 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         final tags = data['tags'] as List<dynamic>? ?? [];
         _selectedTags.clear();
         _selectedTags.addAll(tags.map((t) => t.toString()));
+
+        // Load Coordinates
+        _latitude = (data['latitude'] as num?)?.toDouble();
+        _longitude = (data['longitude'] as num?)?.toDouble();
       }
     } catch (e) {
       debugPrint("Error loading service profile: $e");
@@ -95,20 +103,46 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   Future<void> _fetchLocation() async {
     setState(() => _isFetchingLocation = true);
 
-    // Simulate geolocator location fetching
-    await Future.delayed(const Duration(seconds: 1500 ~/ 1000));
+    double? lat;
+    double? lon;
+    String locSuffix = '';
+
+    try {
+      // Prompt GPS permission and get coordinates
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+          Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low,
+            timeLimit: const Duration(seconds: 4),
+          );
+          lat = position.latitude;
+          lon = position.longitude;
+          locSuffix = ' (GPS Verified)';
+        }
+      }
+    } catch (e) {
+      debugPrint("Gps fetch error: $e");
+    }
 
     final mockLocations = [
-      'Koramangala, Bengaluru',
-      'Indiranagar, Bengaluru',
-      'HSR Layout, Bengaluru',
-      'Whitefield, Bengaluru',
-      'Jayanagar, Bengaluru',
+      {'name': 'Koramangala, Bengaluru', 'lat': 12.9352, 'lon': 77.6244},
+      {'name': 'Indiranagar, Bengaluru', 'lat': 12.9719, 'lon': 77.6412},
+      {'name': 'HSR Layout, Bengaluru', 'lat': 12.9121, 'lon': 77.6446},
+      {'name': 'Whitefield, Bengaluru', 'lat': 12.9698, 'lon': 77.7500},
+      {'name': 'Jayanagar, Bengaluru', 'lat': 12.9308, 'lon': 77.5838},
     ];
     mockLocations.shuffle();
+    final selected = mockLocations.first;
 
     setState(() {
-      _locationController.text = mockLocations.first;
+      _locationController.text = '${selected['name']}$locSuffix';
+      _latitude = lat ?? selected['lat'] as double;
+      _longitude = lon ?? selected['lon'] as double;
       _isFetchingLocation = false;
     });
 
@@ -146,6 +180,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'location': locStr,
         'categories': _selectedCategories,
         'tags': _selectedTags,
+        'latitude': _latitude,
+        'longitude': _longitude,
       });
 
       if (mounted) {
