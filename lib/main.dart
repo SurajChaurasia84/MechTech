@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'services/app_state.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/customer_dashboard.dart';
+import 'screens/mechanic/mechanic_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,7 +75,11 @@ class MainGate extends StatelessWidget {
     }
 
     if (appState.user != null) {
-      return const CustomerDashboard();
+      if (appState.userRole == 'mechanic') {
+        return const MechanicDashboard();
+      } else {
+        return const CustomerDashboard();
+      }
     } else {
       return const LoginScreen();
     }
