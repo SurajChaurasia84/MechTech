@@ -368,6 +368,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                       );
 
                       await appState.switchUserRole(tempSelectedRole);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      }
                     }
                   },
                   child: Text(
