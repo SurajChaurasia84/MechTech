@@ -420,6 +420,9 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                       );
 
                       await appState.switchUserRole(tempSelectedRole);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      }
                     }
                   },
                   child: Text(
