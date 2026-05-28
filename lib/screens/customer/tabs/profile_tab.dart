@@ -113,13 +113,19 @@ class ProfileTab extends StatelessWidget {
                   icon: Icons.help_outline_rounded,
                   title: 'Help & Support',
                   onTap: () async {
-                    final Uri emailLaunchUri = Uri(
+                    final Uri emailUri = Uri(
                       scheme: 'mailto',
                       path: '1shreejee1@gmail.com',
-                      query: Uri.encodeFull('subject=MechTech Support Request'),
+                      queryParameters: {'subject': 'MechTech Support Request'},
                     );
-                    if (await canLaunchUrl(emailLaunchUri)) {
-                      await launchUrl(emailLaunchUri);
+                    try {
+                      await launchUrl(emailUri);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open email app.')),
+                        );
+                      }
                     }
                   },
                 ),
@@ -129,8 +135,14 @@ class ProfileTab extends StatelessWidget {
                   title: 'Privacy Policy',
                   onTap: () async {
                     final Uri url = Uri.parse('https://surajchaurasia84.github.io/MechTech/');
-                    if (await canLaunchUrl(url)) {
+                    try {
                       await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open browser.')),
+                        );
+                      }
                     }
                   },
                 ),
