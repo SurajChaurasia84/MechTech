@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
+import '../../utils/booking_utils.dart';
 
 class BookingSummaryScreen extends StatefulWidget {
   const BookingSummaryScreen({super.key});
@@ -18,7 +19,22 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
   Future<void> _bookService(AppState appState) async {
     setState(() => _isLoading = true);
-    final result = await appState.submitBooking();
+
+    // Call helper to check phone number and fetch location
+    final prepResult = await BookingUtils.prepareForBooking(context);
+    if (!prepResult.success) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    // Submit booking with fetched location details
+    final result = await appState.submitBooking(
+      latitude: prepResult.position?.latitude,
+      longitude: prepResult.position?.longitude,
+      bookingLocation: prepResult.address,
+    );
     if (mounted) {
       setState(() {
         _bookingResult = result;
