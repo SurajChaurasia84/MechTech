@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../services/app_state.dart';
 import '../../customer/edit_profile_screen.dart';
-import '../manage_service_screen.dart';
+import '../my_job_posts_screen.dart';
 
 class MechanicProfileTab extends StatelessWidget {
   const MechanicProfileTab({super.key});
@@ -102,12 +102,12 @@ class MechanicProfileTab extends StatelessWidget {
                 ),
                 const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
-                  icon: Icons.handyman_outlined,
-                  title: 'Manage Service Profile',
+                  icon: Icons.post_add_rounded,
+                  title: 'My Job Posts',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const ManageServiceScreen(),
+                        builder: (_) => const MyJobPostsScreen(),
                       ),
                     );
                   },
