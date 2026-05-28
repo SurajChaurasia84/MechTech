@@ -215,8 +215,8 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     setState(() => _isLoadingMechanics = true);
     try {
       final querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'mechanic')
+          .collection('job_posts')
+          .orderBy('createdAt', descending: true)
           .get();
 
       final List<Map<String, dynamic>> loadedMechs = [];
@@ -233,13 +233,15 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
         loadedMechs.add({
           'id': doc.id,
-          'name': data['name'] as String? ?? 'Specialist Mechanic',
+          'mechanicId': data['mechanicId'] as String?,
+          'title': data['title'] as String? ?? 'Specialist Mechanic',
+          'name': data['mechanicName'] as String? ?? 'Specialist Mechanic',
           'experience': data['experience'] as String? ?? 'Experienced Mechanic',
           'rating': (data['rating'] as num?)?.toDouble() ?? 4.8,
           'rate': data['rate'] as String? ?? '₹30/hr',
           'location': data['location'] as String? ?? 'Bengaluru',
           'desc': data['desc'] as String? ?? '"Expert vehicle mechanic."',
-          'photo': data['photoUrl'] as String? ?? 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?q=80&w=150',
+          'photo': data['mechanicPhotoUrl'] as String? ?? 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?q=80&w=150',
           'categories': (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? ['All'],
           'tags': (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
           'latitude': (data['latitude'] as num?)?.toDouble(),
@@ -283,7 +285,10 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
       // Direct booking summary
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => const BookingSummaryScreen(),
+          builder: (_) => BookingSummaryScreen(
+            mechanicId: mechanic['mechanicId'] as String?,
+            mechanicName: mechanic['name'] as String?,
+          ),
         ),
       );
     } else {
@@ -311,7 +316,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     final currentUserId = appState.user?.uid;
     if (currentUserId == null) return;
 
-    final mechanicId = mech['id'];
+    final mechanicId = mech['mechanicId'];
     if (mechanicId == null) return;
 
     // Show loading spinner
@@ -640,15 +645,18 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name row
+                      // Name/Title row
                       Row(
                         children: [
-                          Text(
-                            mech['name'],
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                          Expanded(
+                            child: Text(
+                              mech['title'] ?? mech['name'],
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -661,7 +669,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        mech['experience'],
+                        'by ${mech['name']} • ${mech['experience']}',
                         style: GoogleFonts.inter(
                           color: const Color(0xFF8B88A5),
                           fontSize: 12,
@@ -918,7 +926,10 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
     final models = appState.getModelsForType(_selectedType);
-    final services = appState.getServicesForType(_selectedType);
+    final mechanicCats = (widget.mechanic['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+    final services = appState.getServicesForType(_selectedType).where((s) {
+      return mechanicCats.contains(s.category);
+    }).toList();
 
     final subtotal = _selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
     final total = subtotal * 1.18; // plus 18% tax
@@ -1073,6 +1084,8 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                           latitude: prepResult.position?.latitude,
                           longitude: prepResult.position?.longitude,
                           bookingLocation: prepResult.address,
+                          mechanicId: widget.mechanic['mechanicId'] as String?,
+                          mechanicName: widget.mechanic['name'] as String?,
                         );
                         
                         if (mounted) {
