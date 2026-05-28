@@ -6,7 +6,14 @@ import '../../services/app_state.dart';
 import '../../utils/booking_utils.dart';
 
 class BookingSummaryScreen extends StatefulWidget {
-  const BookingSummaryScreen({super.key});
+  final String? mechanicId;
+  final String? mechanicName;
+
+  const BookingSummaryScreen({
+    super.key,
+    this.mechanicId,
+    this.mechanicName,
+  });
 
   @override
   State<BookingSummaryScreen> createState() => _BookingSummaryScreenState();
@@ -34,6 +41,8 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
       latitude: prepResult.position?.latitude,
       longitude: prepResult.position?.longitude,
       bookingLocation: prepResult.address,
+      mechanicId: widget.mechanicId,
+      mechanicName: widget.mechanicName,
     );
     if (mounted) {
       setState(() {
@@ -158,6 +167,57 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             ],
                           ),
                         ),
+                        if (widget.mechanicName != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16.0),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF161426),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF00B0FF).withOpacity(0.4), width: 1.2),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00B0FF).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.person_outline_rounded,
+                                    color: Color(0xFF00B0FF),
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.mechanicName!,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Assigned Mechanic Specialist',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: const Color(0xFF8B88A5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
 
                         // Selected Services Header
