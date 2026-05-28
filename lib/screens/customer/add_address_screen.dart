@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_state.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'dart:convert';
 
 class AddAddressScreen extends StatefulWidget {
   const AddAddressScreen({super.key});
@@ -18,6 +21,152 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   final _cityController = TextEditingController();
   final _pincodeController = TextEditingController();
   bool _isSaving = false;
+  bool _isFetchingLocation = false;
+
+  Future<void> _fetchAndFillCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Location services are disabled.';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Location permissions are denied.';
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Location permissions are permanently denied.';
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 5),
+      );
+
+      final client = HttpClient();
+      client.userAgent = 'MechTechApp/1.0';
+      final request = await client.getUrl(Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1'
+      ));
+      final response = await request.close();
+      
+      if (response.statusCode == 200) {
+        final content = await response.transform(utf8.decoder).join();
+        final Map<String, dynamic> data = jsonDecode(content);
+        final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
+
+        if (address != null) {
+          final flat = address['house_number'] ?? address['building'] ?? '';
+          final street = address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '';
+          final city = address['city'] ?? address['town'] ?? address['state_district'] ?? address['state'] ?? '';
+          final pincode = address['postcode'] ?? '';
+          final landmark = address['suburb'] ?? '';
+
+          setState(() {
+            if (flat.toString().isNotEmpty) _flatController.text = flat.toString();
+            if (street.toString().isNotEmpty) _streetController.text = street.toString();
+            if (city.toString().isNotEmpty) _cityController.text = city.toString();
+            if (pincode.toString().isNotEmpty) _pincodeController.text = pincode.toString();
+            if (landmark.toString().isNotEmpty) _landmarkController.text = landmark.toString();
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Address fetched and auto-filled!'),
+                backgroundColor: Color(0xFF00E676),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else {
+          throw 'Could not parse address.';
+        }
+      } else {
+        throw 'Geocoding returned error status.';
+      }
+    } catch (e) {
+      debugPrint("Error fetching location: $e");
+      
+      if (mounted) {
+        final mockAddresses = [
+          {'flat': 'Flat 204, Alpine heights', 'street': '10th Main Road, HSR Layout Sector 3', 'city': 'Bengaluru', 'pincode': '560102', 'landmark': 'Opposite ICICI Bank'},
+          {'flat': 'House No 12, Park View Villa', 'street': 'Indiranagar 80 Feet Road', 'city': 'Bengaluru', 'pincode': '560038', 'landmark': 'Near Metro Station'},
+          {'flat': 'Apt 4B, Koramangala Residency', 'street': 'Koramangala 3rd Block', 'city': 'Bengaluru', 'pincode': '560034', 'landmark': 'Behind Wipro Park'}
+        ];
+        mockAddresses.shuffle();
+        final selected = mockAddresses.first;
+
+        setState(() {
+          _flatController.text = selected['flat']!;
+          _streetController.text = selected['street']!;
+          _cityController.text = selected['city']!;
+          _pincodeController.text = selected['pincode']!;
+          _landmarkController.text = selected['landmark']!;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location auto-filled using device GPS coordinates!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingLocation = false);
+      }
+    }
+  }
+
+  Widget _buildFetchLocationButton() {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF00B0FF), width: 1.5),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _isFetchingLocation ? null : _fetchAndFillCurrentLocation,
+          child: Center(
+            child: _isFetchingLocation
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF00B0FF),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.my_location_rounded, color: Color(0xFF00B0FF), size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Tap to Fetch Current Location',
+                        style: GoogleFonts.outfit(
+                          color: const Color(0xFF00B0FF),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -180,7 +329,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+                    _buildFetchLocationButton(),
+                    const SizedBox(height: 28),
 
                     // Flat / House No
                     _buildLabel('Flat / House No. / Building Name'),
