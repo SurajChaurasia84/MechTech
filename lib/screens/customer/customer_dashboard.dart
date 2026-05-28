@@ -7,7 +7,7 @@ import 'tabs/home_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/profile_tab.dart';
 import 'tabs/messages_tab.dart';
-import 'find_mechanic_screen.dart';
+
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -89,150 +89,52 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
             _buildBody(),
           ],
         ),
-        extendBody: true, // Let body extend behind BottomAppBar for notch look
-        bottomNavigationBar: BottomAppBar(
-          color: const Color(0xFF161426),
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 8.0,
-          clipBehavior: Clip.antiAlias,
-          padding: EdgeInsets.zero,
-          child: Container(
-            height: 60,
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: const Color(0xFF302B53).withOpacity(0.4),
-                  width: 1.0,
-                ),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: const Color(0xFF302B53).withOpacity(0.6),
+                width: 1.5,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // Home button
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _currentIndex == 0 ? Icons.home_rounded : Icons.home_outlined,
-                          color: _currentIndex == 0 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Home',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: _currentIndex == 0 ? FontWeight.bold : FontWeight.normal,
-                            color: _currentIndex == 0 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Bookings button
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 1),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _currentIndex == 1 ? Icons.assignment_turned_in_rounded : Icons.assignment_turned_in_outlined,
-                          color: _currentIndex == 1 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Bookings',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: _currentIndex == 1 ? FontWeight.bold : FontWeight.normal,
-                            color: _currentIndex == 1 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Empty space for FloatingActionButton
-                const SizedBox(width: 48),
-                // Messages button
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _currentIndex == 2 ? Icons.forum_rounded : Icons.forum_outlined,
-                          color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Messages',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: _currentIndex == 2 ? FontWeight.bold : FontWeight.normal,
-                            color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Profile button
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 3),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _currentIndex == 3 ? Icons.person_rounded : Icons.person_outline_rounded,
-                          color: _currentIndex == 3 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Profile',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: _currentIndex == 3 ? FontWeight.bold : FontWeight.normal,
-                            color: _currentIndex == 3 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
-        ),
-        floatingActionButton: Container(
-          height: 60,
-          width: 60,
-          child: FloatingActionButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const FindMechanicScreen(),
-                ),
-              );
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            backgroundColor: const Color(0xFF161426),
+            selectedItemColor: accentColor,
+            unselectedItemColor: const Color(0xFF8B88A5),
+            selectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+            unselectedLabelStyle: GoogleFonts.inter(fontSize: 12),
+            type: BottomNavigationBarType.fixed,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
             },
-            shape: const CircleBorder(),
-            backgroundColor: const Color(0xFF08693F), // Rich green brand color
-            elevation: 8.0,
-            child: const Icon(
-              Icons.add_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assignment_turned_in_outlined),
+                activeIcon: Icon(Icons.assignment_turned_in_rounded),
+                label: 'Bookings',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.forum_outlined),
+                activeIcon: Icon(Icons.forum_rounded),
+                label: 'Messages',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline_rounded),
+                activeIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
+            ],
           ),
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       ), // Scaffold
     ); // PopScope
   }
