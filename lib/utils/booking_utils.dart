@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import '../screens/customer/edit_profile_screen.dart';
 import '../screens/customer/add_address_screen.dart';
+import 'dart:io';
+import 'dart:convert';
 
 class BookingPrepResult {
   final bool success;
@@ -56,11 +58,47 @@ class BookingUtils {
     if (!context.mounted) return BookingPrepResult(success: false);
 
     if (position != null) {
-      final mockAddress = 'GPS Coordinates (${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)})';
+      String resolvedAddress = '';
+      try {
+        final client = HttpClient();
+        client.userAgent = 'MechTechApp/1.0';
+        final request = await client.getUrl(Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1'
+        ));
+        final response = await request.close();
+        
+        if (response.statusCode == 200) {
+          final content = await response.transform(utf8.decoder).join();
+          final Map<String, dynamic> data = jsonDecode(content);
+          final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
+
+          if (address != null) {
+            final flat = address['house_number'] ?? address['building'] ?? '';
+            final street = address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '';
+            final city = address['city'] ?? address['town'] ?? address['state_district'] ?? address['state'] ?? '';
+            final pincode = address['postcode'] ?? '';
+            
+            final parts = [
+              if (flat.toString().isNotEmpty) flat.toString(),
+              if (street.toString().isNotEmpty) street.toString(),
+              if (city.toString().isNotEmpty) city.toString(),
+              if (pincode.toString().isNotEmpty) pincode.toString(),
+            ];
+            resolvedAddress = parts.join(', ');
+          }
+        }
+      } catch (e) {
+        debugPrint("Geocoding failed in BookingUtils: $e");
+      }
+
+      if (resolvedAddress.isEmpty) {
+        resolvedAddress = 'GPS Coordinates (${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)})';
+      }
+
       return BookingPrepResult(
         success: true,
         position: position,
-        address: mockAddress,
+        address: resolvedAddress,
       );
     }
 
