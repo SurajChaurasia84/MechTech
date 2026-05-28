@@ -10,6 +10,7 @@ class AppState extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   User? _user;
+  bool _isAuthLoading = true; // true until first Firebase auth event resolves
   String? _currentCustomerName; // Fallback for testing/non-firebase
   String? _currentCustomerEmail; // Fallback for testing/non-firebase
   String? _currentCustomerPhone;
@@ -36,17 +37,78 @@ class AppState extends ChangeNotifier {
         } catch (e) {
           debugPrint("Error loading user profile: $e");
         }
+        // Load bookings from Firestore
+        await _loadBookingsFromFirestore(user.uid);
       } else {
         _currentCustomerPhone = null;
         _customerAddress = null;
         _currentCustomerEmail = null;
+        _bookings.clear();
       }
+      _isAuthLoading = false;
       notifyListeners();
     });
   }
 
+  Future<void> _loadBookingsFromFirestore(String uid) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('bookings')
+          .orderBy('bookingDate', descending: true)
+          .get();
+
+      _bookings.clear();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        // Resolve services by ID from the local catalog
+        final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final resolvedServices = rawServices
+            .map((s) => _allServices.firstWhere(
+                  (item) => item.id == s['id'],
+                  orElse: () => ServiceItem(
+                    id: s['id'] as String,
+                    name: s['name'] as String,
+                    price: (s['price'] as num).toDouble(),
+                    description: '',
+                    duration: '',
+                    vehicleType: VehicleType.car,
+                  ),
+                ))
+            .toList();
+
+        // Parse vehicleType from stored string
+        VehicleType vType = VehicleType.car;
+        final vTypeStr = data['vehicleType'] as String? ?? 'car';
+        if (vTypeStr == 'bike') vType = VehicleType.bike;
+        if (vTypeStr == 'ev') vType = VehicleType.ev;
+
+        // Parse bookingDate — Firestore Timestamp or fallback
+        DateTime bookingDate = DateTime.now();
+        final rawDate = data['bookingDate'];
+        if (rawDate != null && rawDate is Timestamp) {
+          bookingDate = rawDate.toDate();
+        }
+
+        _bookings.add(ServiceBooking(
+          id: data['id'] as String? ?? doc.id,
+          customerName: _currentCustomerName ?? '',
+          vehicleType: vType,
+          vehicleModel: data['vehicleModel'] as String? ?? '',
+          selectedServices: resolvedServices,
+          bookingDate: bookingDate,
+          status: data['status'] as String? ?? 'Pending',
+        ));
+      }
+    } catch (e) {
+      debugPrint("Error loading bookings: $e");
+    }
+  }
+
   // Getters
   User? get user => _user;
+  bool get isAuthLoading => _isAuthLoading;
   String? get currentCustomerName => _user?.displayName ?? _currentCustomerName;
   String? get currentCustomerEmail => _user?.email ?? _currentCustomerEmail;
   String? get currentCustomerPhone => _currentCustomerPhone;
@@ -67,6 +129,8 @@ class AppState extends ChangeNotifier {
     if (currentUser != null) {
       try {
         await currentUser.updateDisplayName(name);
+        await currentUser.reload();           // refresh cached User object
+        _user = _auth.currentUser;            // re-assign with updated displayName
         await _firestore.collection('users').doc(currentUser.uid).update({
           'name': name,
           'email': email,
@@ -411,7 +475,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  ServiceBooking? submitBooking() {
+  Future<ServiceBooking?> submitBooking() async {
     final name = currentCustomerName;
     if (name == null ||
         _selectedVehicleType == null ||
@@ -429,26 +493,42 @@ class AppState extends ChangeNotifier {
       bookingDate: DateTime.now(),
     );
 
-    _bookings.add(newBooking);
-    
-    // In a real app we might also save this booking under users/uid/bookings in Firestore:
+    // Save to Firestore first
     if (_user != null) {
-      _firestore.collection('users').doc(_user!.uid).collection('bookings').doc(newBooking.id).set({
-        'id': newBooking.id,
-        'vehicleType': _selectedVehicleType!.name,
-        'vehicleModel': _selectedVehicleModel,
-        'totalAmount': newBooking.totalAmount,
-        'bookingDate': FieldValue.serverTimestamp(),
-        'status': newBooking.status,
-        'services': _selectedServices.map((s) => {'id': s.id, 'name': s.name, 'price': s.price}).toList(),
-      });
+      try {
+        await _firestore
+            .collection('users')
+            .doc(_user!.uid)
+            .collection('bookings')
+            .doc(newBooking.id)
+            .set({
+          'id': newBooking.id,
+          'vehicleType': _selectedVehicleType!.name,
+          'vehicleModel': _selectedVehicleModel,
+          'totalAmount': newBooking.totalAmount,
+          'bookingDate': FieldValue.serverTimestamp(),
+          'status': newBooking.status,
+          'services': _selectedServices
+              .map((s) => {'id': s.id, 'name': s.name, 'price': s.price})
+              .toList(),
+        });
+        // Reload from Firestore so history is consistent
+        await _loadBookingsFromFirestore(_user!.uid);
+      } catch (e) {
+        debugPrint("Error saving booking: $e");
+        // Fallback: add locally if Firestore fails
+        _bookings.insert(0, newBooking);
+      }
+    } else {
+      // Offline fallback
+      _bookings.insert(0, newBooking);
     }
 
     // Clear selection for next time
     _selectedVehicleType = null;
     _selectedVehicleModel = null;
     _selectedServices.clear();
-    
+
     notifyListeners();
     return newBooking;
   }
