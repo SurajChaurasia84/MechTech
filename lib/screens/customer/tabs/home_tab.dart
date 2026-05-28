@@ -6,7 +6,6 @@ import '../../../models/service_model.dart';
 import '../../../services/app_state.dart';
 import '../service_selection_screen.dart';
 import '../find_mechanic_screen.dart';
-import '../booking_summary_screen.dart';
 import 'history_tab.dart';
 
 class HomeTab extends StatefulWidget {
@@ -54,12 +53,6 @@ class _HomeTabState extends State<HomeTab> {
       'price': '₹349/hr',
       'image': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=300'
     },
-    'AC': {
-      'icon': Icons.ac_unit_rounded,
-      'desc': 'AC gas refill and servicing',
-      'price': '₹299/hr',
-      'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
-    },
   };
 
   @override
@@ -72,8 +65,7 @@ class _HomeTabState extends State<HomeTab> {
     setState(() => _isLoading = true);
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'mechanic')
+          .collection('job_posts')
           .get();
 
       final Set<String> activeCats = {};
