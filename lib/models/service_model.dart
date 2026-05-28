@@ -48,20 +48,30 @@ class ServiceItem {
 class ServiceBooking {
   final String id;
   final String customerName;
+  final String? customerId;
+  final String? customerPhone;
+  final String? customerEmail;
   final VehicleType vehicleType;
   final String vehicleModel;
   final List<ServiceItem> selectedServices;
   final DateTime bookingDate;
   final String status;
+  final String? mechanicId;
+  final String? mechanicName;
 
   ServiceBooking({
     required this.id,
     required this.customerName,
+    this.customerId,
+    this.customerPhone,
+    this.customerEmail,
     required this.vehicleType,
     required this.vehicleModel,
     required this.selectedServices,
     required this.bookingDate,
     this.status = 'Pending',
+    this.mechanicId,
+    this.mechanicName,
   });
 
   double get totalAmount => selectedServices.fold(0, (sum, item) => sum + item.price);
