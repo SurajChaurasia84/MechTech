@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
-import 'tabs/messages_tab.dart';
+import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
 
 class FindMechanicScreen extends StatefulWidget {
@@ -177,6 +177,125 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
         return QuickBookingSheet(mechanic: mechanic);
       },
     );
+  }
+
+  void _handleMessageMechanic(Map<String, dynamic> mech) async {
+    final appState = context.read<AppState>();
+    final currentUserId = appState.user?.uid;
+    if (currentUserId == null) return;
+
+    final mechanicId = mech['id'];
+    if (mechanicId == null) return;
+
+    // Show loading spinner
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00E676)),
+      ),
+    );
+
+    try {
+      // 1. Abuse Prevention: Query global bookings to check if any booking exists
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('customerId', isEqualTo: currentUserId)
+          .where('mechanicId', isEqualTo: mechanicId)
+          .limit(1)
+          .get();
+
+      // Dismiss loading spinner
+      if (mounted) Navigator.of(context).pop();
+
+      if (querySnapshot.docs.isEmpty) {
+        // No booking exists! Show error dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF161426),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
+                ),
+                title: Text(
+                  'Messaging Blocked',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                content: Text(
+                  'To prevent spam and misuse, you can only message a mechanic once you have requested a service booking with them.',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF8B88A5),
+                    height: 1.4,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Got it',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF00E676),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        }
+        return;
+      }
+
+      // 2. Booking exists! Resolve roomId deterministically
+      final roomId = currentUserId.compareTo(mechanicId) < 0
+          ? '${currentUserId}_$mechanicId'
+          : '${mechanicId}_$currentUserId';
+
+      // 3. Ensure the chat room document exists in Firestore (create if missing)
+      final chatDocRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
+      final chatDoc = await chatDocRef.get();
+      if (!chatDoc.exists) {
+        await chatDocRef.set({
+          'id': roomId,
+          'customerId': currentUserId,
+          'customerName': appState.currentCustomerName ?? 'Customer',
+          'customerPhotoUrl': appState.currentCustomerPhotoUrl ?? '',
+          'mechanicId': mechanicId,
+          'mechanicName': mech['name'] ?? 'Mechanic',
+          'mechanicPhotoUrl': mech['photo'] ?? '',
+          'lastMessage': '',
+          'lastSenderId': '',
+          'timestamp': FieldValue.serverTimestamp(),
+          'unreadByCustomer': false,
+          'unreadByMechanic': false,
+        });
+      }
+
+      // 4. Open Chat Detail Screen
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatDetailScreen(
+              roomId: roomId,
+              recipientId: mechanicId,
+              recipientName: mech['name'] ?? 'Mechanic',
+              recipientPhotoUrl: mech['photo'] ?? '',
+              recipientRole: 'Mechanic Specialist',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop(); // dismiss loading
+      debugPrint("Error checking/creating chat: $e");
+    }
   }
 
   @override
@@ -502,17 +621,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatDetailScreen(
-                                name: mech['name'],
-                                role: mech['role'],
-                                isOnline: true,
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: () => _handleMessageMechanic(mech),
                         child: Center(
                           child: Text(
                             'Message',
