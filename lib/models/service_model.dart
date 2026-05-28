@@ -34,6 +34,7 @@ class ServiceItem {
   final String description;
   final String duration;
   final VehicleType vehicleType;
+  final String category;
 
   const ServiceItem({
     required this.id,
@@ -42,6 +43,41 @@ class ServiceItem {
     required this.description,
     required this.duration,
     required this.vehicleType,
+    required this.category,
+  });
+}
+
+class JobPost {
+  final String id;
+  final String mechanicId;
+  final String mechanicName;
+  final String mechanicPhotoUrl;
+  final String title;
+  final String rate;
+  final String experience;
+  final String desc;
+  final String location;
+  final List<String> categories;
+  final List<String> tags;
+  final double? latitude;
+  final double? longitude;
+  final DateTime createdAt;
+
+  JobPost({
+    required this.id,
+    required this.mechanicId,
+    required this.mechanicName,
+    required this.mechanicPhotoUrl,
+    required this.title,
+    required this.rate,
+    required this.experience,
+    required this.desc,
+    required this.location,
+    required this.categories,
+    required this.tags,
+    this.latitude,
+    this.longitude,
+    required this.createdAt,
   });
 }
 
