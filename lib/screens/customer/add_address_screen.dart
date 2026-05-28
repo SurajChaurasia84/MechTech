@@ -91,30 +91,15 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       } else {
         throw 'Geocoding returned error status.';
       }
+
     } catch (e) {
       debugPrint("Error fetching location: $e");
-      
       if (mounted) {
-        final mockAddresses = [
-          {'flat': 'Flat 204, Alpine heights', 'street': '10th Main Road, HSR Layout Sector 3', 'city': 'Bengaluru', 'pincode': '560102', 'landmark': 'Opposite ICICI Bank'},
-          {'flat': 'House No 12, Park View Villa', 'street': 'Indiranagar 80 Feet Road', 'city': 'Bengaluru', 'pincode': '560038', 'landmark': 'Near Metro Station'},
-          {'flat': 'Apt 4B, Koramangala Residency', 'street': 'Koramangala 3rd Block', 'city': 'Bengaluru', 'pincode': '560034', 'landmark': 'Behind Wipro Park'}
-        ];
-        mockAddresses.shuffle();
-        final selected = mockAddresses.first;
-
-        setState(() {
-          _flatController.text = selected['flat']!;
-          _streetController.text = selected['street']!;
-          _cityController.text = selected['city']!;
-          _pincodeController.text = selected['pincode']!;
-          _landmarkController.text = selected['landmark']!;
-        });
-
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location auto-filled using device GPS coordinates!'),
+          SnackBar(
+            content: Text('Unable to fetch address dynamically. Please type your address details manually.'),
             behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.redAccent,
           ),
         );
       }
