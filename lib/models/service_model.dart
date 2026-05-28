@@ -58,6 +58,9 @@ class ServiceBooking {
   final String status;
   final String? mechanicId;
   final String? mechanicName;
+  final double? latitude;
+  final double? longitude;
+  final String? bookingLocation;
 
   ServiceBooking({
     required this.id,
@@ -72,6 +75,9 @@ class ServiceBooking {
     this.status = 'Pending',
     this.mechanicId,
     this.mechanicName,
+    this.latitude,
+    this.longitude,
+    this.bookingLocation,
   });
 
   double get totalAmount => selectedServices.fold(0, (sum, item) => sum + item.price);
