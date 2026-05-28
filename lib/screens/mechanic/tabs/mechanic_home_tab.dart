@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../models/service_model.dart';
 import '../../../services/app_state.dart';
+import '../../chat/chat_detail_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MechanicHomeTab extends StatefulWidget {
   const MechanicHomeTab({super.key});
@@ -13,6 +15,63 @@ class MechanicHomeTab extends StatefulWidget {
 
 class _MechanicHomeTabState extends State<MechanicHomeTab> {
   bool _isLoading = false;
+
+  void _handleMessageCustomer(ServiceBooking job, AppState appState) async {
+    final mechanicId = appState.user?.uid;
+    final customerId = job.customerId;
+    if (mechanicId == null || customerId == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00E676)),
+      ),
+    );
+
+    try {
+      final roomId = customerId.compareTo(mechanicId) < 0
+          ? '${customerId}_$mechanicId'
+          : '${mechanicId}_$customerId';
+
+      final chatDocRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
+      final chatDoc = await chatDocRef.get();
+      if (!chatDoc.exists) {
+        await chatDocRef.set({
+          'id': roomId,
+          'customerId': customerId,
+          'customerName': job.customerName,
+          'customerPhotoUrl': '',
+          'mechanicId': mechanicId,
+          'mechanicName': job.mechanicName ?? appState.user?.displayName ?? 'Mechanic',
+          'mechanicPhotoUrl': appState.user?.photoURL ?? '',
+          'lastMessage': '',
+          'lastSenderId': '',
+          'timestamp': FieldValue.serverTimestamp(),
+          'unreadByCustomer': false,
+          'unreadByMechanic': false,
+        });
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss loading
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatDetailScreen(
+              roomId: roomId,
+              recipientId: customerId,
+              recipientName: job.customerName,
+              recipientPhotoUrl: '',
+              recipientRole: 'Client',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      debugPrint("Error launching chat from mechanic: $e");
+    }
+  }
 
   Future<void> _handleAcceptJob(AppState appState, String bookingId) async {
     setState(() => _isLoading = true);
@@ -331,14 +390,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Messaging is in mock mode.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
+                          onTap: () => _handleMessageCustomer(job, appState),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
