@@ -6,6 +6,8 @@ import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../utils/booking_utils.dart';
 
 class FindMechanicScreen extends StatefulWidget {
   final String? initialFilter;
@@ -21,16 +23,192 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
   String _selectedTag = 'All';
   bool _isLoadingMechanics = true;
 
-  final List<String> _categories = ['All', 'Oil Change', 'Engine', 'Brakes', 'Tyre'];
-  final List<String> _tags = ['All', '#petrol', '#diesel', '#ev', '#4x4', '#suv'];
+  final List<String> _categories = ['All'];
+  final List<String> _tags = ['All'];
 
   List<Map<String, dynamic>> _mechanics = [];
+  Position? _currentPosition;
+
+  void _sortMechanicsByDistance() {
+    if (_currentPosition == null) return;
+    setState(() {
+      _mechanics.sort((a, b) {
+        final aLat = a['latitude'] as double?;
+        final aLon = a['longitude'] as double?;
+        final bLat = b['latitude'] as double?;
+        final bLon = b['longitude'] as double?;
+
+        if (aLat == null || aLon == null) return 1;
+        if (bLat == null || bLon == null) return -1;
+
+        final distA = Geolocator.distanceBetween(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          aLat,
+          aLon,
+        );
+        final distB = Geolocator.distanceBetween(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          bLat,
+          bLon,
+        );
+
+        return distA.compareTo(distB);
+      });
+    });
+  }
+
+  Widget _buildLocationPromptBanner() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0),
+      child: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161426),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFFFB300).withOpacity(0.6),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.location_off_rounded, color: Color(0xFFFFB300), size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Get Best Nearby Mechanics',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please turn on your location services and permissions to find the closest and best mechanics near you.',
+              style: GoogleFonts.inter(
+                color: const Color(0xFF8B88A5),
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton(
+              onPressed: _checkAndRequestLocationPermission,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFB300),
+                foregroundColor: const Color(0xFF0D0B18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'Enable Location Services',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.initialFilter ?? 'All';
     _fetchMechanicsFromFirestore();
+    _checkAndRequestLocationPermission();
+  }
+
+  Future<void> _checkAndRequestLocationPermission() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location services are disabled. Please enable them to find the closest mechanics.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permissions are denied. We will show mechanics by rating instead.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    }
+    
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permissions are permanently denied. Please enable them in settings to see nearby mechanics.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    } 
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 5),
+      );
+      debugPrint("User location: ${position.latitude}, ${position.longitude}");
+      
+      setState(() {
+        _currentPosition = position;
+      });
+
+      _sortMechanicsByDistance();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.gps_fixed, color: Color(0xFF00E676), size: 16),
+                const SizedBox(width: 8),
+                Text('Location resolved! Showing nearest mechanics first.', style: GoogleFonts.inter(fontSize: 12)),
+              ],
+            ),
+            backgroundColor: const Color(0xFF161426),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error fetching location: $e");
+    }
   }
 
   Future<void> _fetchMechanicsFromFirestore() async {
@@ -41,79 +219,18 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           .where('role', isEqualTo: 'mechanic')
           .get();
 
-      if (querySnapshot.docs.isEmpty) {
-        // Seed default mechanics to Firestore so data is present!
-        final List<Map<String, dynamic>> defaultMechs = [
-          {
-            'uid': 'mech_arjun_mock',
-            'name': 'Arjun Mehta',
-            'email': 'arjun.mehta@example.com',
-            'role': 'mechanic',
-            'experience': '6 years of experience',
-            'rating': 4.7,
-            'rate': '₹40/hr',
-            'location': 'Works in Koramangala, Bengaluru',
-            'desc': '"I specialise in engine overhauls and diagnostics. Own full toolkit and spares."',
-            'photoUrl': 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?q=80&w=150',
-            'categories': ['Engine', 'Oil Change'],
-            'tags': ['#petrol', '#diesel', '#suv'],
-          },
-          {
-            'uid': 'mech_priya_mock',
-            'name': 'Priya Nair',
-            'email': 'priya.nair@example.com',
-            'role': 'mechanic',
-            'experience': '4 years of experience',
-            'rating': 4.5,
-            'rate': '₹35/hr',
-            'location': 'Works in Indiranagar, Bengaluru',
-            'desc': '"Electrical systems and AC diagnosis are my forte. Fast turnaround guaranteed."',
-            'photoUrl': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150',
-            'categories': ['Electrical', 'Tyre'],
-            'tags': ['#ev', '#petrol'],
-          },
-          {
-            'uid': 'mech_rohan_mock',
-            'name': 'Rohan Sharma',
-            'email': 'rohan.sharma@example.com',
-            'role': 'mechanic',
-            'experience': '5 years of experience',
-            'rating': 4.8,
-            'rate': '₹30/hr',
-            'location': 'Works in HSR Layout, Bengaluru',
-            'desc': '"Brake service and general maintenance. Premium brake pad installations and adjustments."',
-            'photoUrl': 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?q=80&w=150',
-            'categories': ['Brakes', 'Oil Change'],
-            'tags': ['#petrol', '#diesel', '#4x4'],
-          },
-          {
-            'uid': 'mech_vikram_mock',
-            'name': 'Vikram Singh',
-            'email': 'vikram.singh@example.com',
-            'role': 'mechanic',
-            'experience': '7 years of experience',
-            'rating': 4.9,
-            'rate': '₹45/hr',
-            'location': 'Works in Whitefield, Bengaluru',
-            'desc': '"Tire alignment, balancing, and puncture repair. Available for fast roadside assistance."',
-            'photoUrl': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150',
-            'categories': ['Tyre', 'Brakes'],
-            'tags': ['#suv', '#ev'],
-          },
-        ];
-
-        for (final mech in defaultMechs) {
-          await FirebaseFirestore.instance.collection('users').doc(mech['uid']).set(mech);
-        }
-        
-        // Fetch again after seeding
-        _fetchMechanicsFromFirestore();
-        return;
-      }
-
       final List<Map<String, dynamic>> loadedMechs = [];
+      final Set<String> dynamicCategories = {'All'};
+      final Set<String> dynamicTags = {'All'};
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
+        final mechCats = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+        final mechTags = (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
+
+        dynamicCategories.addAll(mechCats);
+        dynamicTags.addAll(mechTags);
+
         loadedMechs.add({
           'id': doc.id,
           'name': data['name'] as String? ?? 'Specialist Mechanic',
@@ -125,13 +242,23 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           'photo': data['photoUrl'] as String? ?? 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?q=80&w=150',
           'categories': (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? ['All'],
           'tags': (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
+          'latitude': (data['latitude'] as num?)?.toDouble(),
+          'longitude': (data['longitude'] as num?)?.toDouble(),
         });
       }
 
       setState(() {
         _mechanics = loadedMechs;
+        _categories.clear();
+        _categories.addAll(dynamicCategories);
+        _tags.clear();
+        _tags.addAll(dynamicTags);
         _isLoadingMechanics = false;
       });
+
+      if (_currentPosition != null) {
+        _sortMechanicsByDistance();
+      }
     } catch (e) {
       debugPrint("Error fetching mechanics: $e");
       setState(() => _isLoadingMechanics = false);
@@ -453,9 +580,13 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          itemCount: filteredMechanics.length,
+                          itemCount: filteredMechanics.length + (_currentPosition == null ? 1 : 0),
                           itemBuilder: (context, index) {
-                            final mech = filteredMechanics[index];
+                            if (_currentPosition == null && index == 0) {
+                              return _buildLocationPromptBanner();
+                            }
+                            final mechIndex = _currentPosition == null ? index - 1 : index;
+                            final mech = filteredMechanics[mechIndex];
                             return _buildMechanicCard(mech);
                           },
                         ),
@@ -577,6 +708,45 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                               ),
                             ),
                           ),
+                          Builder(
+                            builder: (context) {
+                              final aLat = mech['latitude'] as double?;
+                              final aLon = mech['longitude'] as double?;
+                              if (_currentPosition != null && aLat != null && aLon != null) {
+                                final distanceInMeters = Geolocator.distanceBetween(
+                                  _currentPosition!.latitude,
+                                  _currentPosition!.longitude,
+                                  aLat,
+                                  aLon,
+                                );
+                                String distanceStr = '';
+                                if (distanceInMeters >= 1000) {
+                                  distanceStr = '${(distanceInMeters / 1000).toStringAsFixed(1)} km away';
+                                } else {
+                                  distanceStr = '${distanceInMeters.toStringAsFixed(0)} m away';
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00B0FF).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      distanceStr,
+                                      style: GoogleFonts.outfit(
+                                        color: const Color(0xFF00B0FF),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
                         ],
                       ),
                     ],
@@ -606,7 +776,63 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                 fontStyle: FontStyle.italic,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // Categories & Tags Wrap
+            Builder(
+              builder: (context) {
+                final cats = (mech['categories'] as List<dynamic>?)?.map((e) => e.toString()).where((c) => c != 'All').toList() ?? [];
+                final tags = (mech['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+                if (cats.isEmpty && tags.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      ...cats.map((cat) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF08693F).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF00E676).withOpacity(0.6),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              cat,
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF00E676),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )),
+                      ...tags.map((tag) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00B0FF).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF00B0FF).withOpacity(0.6),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              tag,
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF00B0FF),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
             // Buttons
             Row(
               children: [
@@ -825,6 +1051,15 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                     ? () async {
                         setState(() => _isBooking = true);
                         
+                        // Call helper to check phone number and fetch location
+                        final prepResult = await BookingUtils.prepareForBooking(context);
+                        if (!prepResult.success) {
+                          if (mounted) {
+                            setState(() => _isBooking = false);
+                          }
+                          return;
+                        }
+
                         // Setup the AppState selections so submitBooking registers it
                         appState.selectVehicleType(_selectedType);
                         appState.selectVehicleModel(_selectedModel!);
@@ -834,7 +1069,11 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                         }
 
                         // Submit booking
-                        final booking = await appState.submitBooking();
+                        final booking = await appState.submitBooking(
+                          latitude: prepResult.position?.latitude,
+                          longitude: prepResult.position?.longitude,
+                          bookingLocation: prepResult.address,
+                        );
                         
                         if (mounted) {
                           Navigator.of(context).pop(); // close sheet
