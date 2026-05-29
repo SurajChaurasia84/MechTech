@@ -87,18 +87,47 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
   void _showContactDetailsSheet(ServiceBooking job) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161426),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (context) {
-        final phone = job.customerPhone ?? 'Not Provided';
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      builder: (ctx) {
+        final phone = job.customerPhone ?? '';
+        final hasPhone = phone.isNotEmpty;
+        // Mask: first 2 digits visible, rest replaced with *
+        final maskedPhone = hasPhone && phone.length > 2
+            ? phone.substring(0, 2) + '*' * (phone.length - 2)
+            : phone;
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF161426),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 12,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF302B53),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+
+              // Title row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -110,89 +139,149 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                       color: Colors.white,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
+                  GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF302B53).withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close, color: Colors.white, size: 18),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D0B18),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFF00B0FF).withValues(alpha: 0.3),
-                        width: 1.5,
+
+              // Customer info card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D0B18),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF302B53).withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161426),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF00B0FF).withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Icon(Icons.person_rounded, color: Color(0xFF00B0FF), size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            job.customerName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Text(
+                                hasPhone ? maskedPhone : 'Number not available',
+                                style: GoogleFonts.inter(
+                                  color: hasPhone
+                                      ? const Color(0xFF00E676)
+                                      : const Color(0xFF8B88A5),
+                                  fontSize: 14,
+                                  fontWeight: hasPhone ? FontWeight.w600 : FontWeight.normal,
+                                  letterSpacing: hasPhone ? 1.2 : 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Icon(Icons.person, color: Color(0xFF00B0FF), size: 28),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.customerName,
-                          style: GoogleFonts.outfit(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          phone,
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF8B88A5),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: job.customerPhone != null && job.customerPhone!.isNotEmpty
+              const SizedBox(height: 28),
+
+              // Call button
+              GestureDetector(
+                onTap: hasPhone
                     ? () async {
-                        final Uri phoneUri = Uri(scheme: 'tel', path: job.customerPhone!);
+                        final Uri phoneUri = Uri(scheme: 'tel', path: phone);
                         try {
-                          if (await canLaunchUrl(phoneUri)) {
-                            await launchUrl(phoneUri);
-                          } else {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Could not launch phone dialer.')),
-                              );
-                            }
-                          }
+                          await launchUrl(
+                            phoneUri,
+                            mode: LaunchMode.externalApplication,
+                          );
                         } catch (e) {
-                          debugPrint("Error launching dialer: $e");
+                          debugPrint('Error launching dialer: $e');
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open phone dialer.'),
+                                backgroundColor: Color(0xFF302B53),
+                              ),
+                            );
+                          }
                         }
                       }
                     : null,
-                icon: const Icon(Icons.phone_rounded, size: 20),
-                label: Text(
-                  'Call Customer',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00B0FF),
-                  foregroundColor: const Color(0xFF0D0B18),
-                  shape: RoundedRectangleBorder(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 54,
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
+                    gradient: hasPhone
+                        ? const LinearGradient(
+                            colors: [Color(0xFF00B0FF), Color(0xFF0077CC)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: hasPhone ? null : const Color(0xFF302B53),
+                    boxShadow: hasPhone
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF00B0FF).withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ]
+                        : null,
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.phone_rounded,
+                        size: 20,
+                        color: hasPhone ? const Color(0xFF0D0B18) : const Color(0xFF8B88A5),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Call Customer',
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: hasPhone ? const Color(0xFF0D0B18) : const Color(0xFF8B88A5),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
