@@ -34,6 +34,16 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
           ? '${customerId}_$mechanicId'
           : '${mechanicId}_$customerId';
 
+      String customerPhotoUrl = '';
+      try {
+        final customerDoc = await FirebaseFirestore.instance.collection('users').doc(customerId).get();
+        if (customerDoc.exists) {
+          customerPhotoUrl = customerDoc.data()?['photoUrl'] as String? ?? '';
+        }
+      } catch (e) {
+        debugPrint("Error fetching customer photo url: $e");
+      }
+
       final chatDocRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
       final chatDoc = await chatDocRef.get();
       if (!chatDoc.exists) {
@@ -41,7 +51,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
           'id': roomId,
           'customerId': customerId,
           'customerName': job.customerName,
-          'customerPhotoUrl': '',
+          'customerPhotoUrl': customerPhotoUrl,
           'mechanicId': mechanicId,
           'mechanicName': job.mechanicName ?? appState.user?.displayName ?? 'Mechanic',
           'mechanicPhotoUrl': appState.user?.photoURL ?? '',
@@ -61,7 +71,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
               roomId: roomId,
               recipientId: customerId,
               recipientName: job.customerName,
-              recipientPhotoUrl: '',
+              recipientPhotoUrl: customerPhotoUrl,
               recipientRole: 'Client',
             ),
           ),
