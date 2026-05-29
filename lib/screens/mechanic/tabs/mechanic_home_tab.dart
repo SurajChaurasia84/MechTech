@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../models/service_model.dart';
 import '../../../services/app_state.dart';
 import '../../chat/chat_detail_screen.dart';
@@ -83,6 +84,124 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
     }
   }
 
+  void _showContactDetailsSheet(ServiceBooking job) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161426),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        final phone = job.customerPhone ?? 'Not Provided';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Contact Customer',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D0B18),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF00B0FF).withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(Icons.person, color: Color(0xFF00B0FF), size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          job.customerName,
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          phone,
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF8B88A5),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: job.customerPhone != null && job.customerPhone!.isNotEmpty
+                    ? () async {
+                        final Uri phoneUri = Uri(scheme: 'tel', path: job.customerPhone!);
+                        try {
+                          if (await canLaunchUrl(phoneUri)) {
+                            await launchUrl(phoneUri);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not launch phone dialer.')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint("Error launching dialer: $e");
+                        }
+                      }
+                    : null,
+                icon: const Icon(Icons.phone_rounded, size: 20),
+                label: Text(
+                  'Call Customer',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B0FF),
+                  foregroundColor: const Color(0xFF0D0B18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _handleAcceptJob(AppState appState, String bookingId) async {
     setState(() => _isLoading = true);
     await appState.acceptJob(bookingId);
@@ -100,7 +219,9 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
     final appState = context.watch<AppState>();
     final allJobs = appState.allGlobalBookings;
 
-    final pendingJobs = allJobs.where((job) => job.status == 'Pending').toList();
+    final pendingJobs = allJobs.where((job) => 
+      job.status == 'Pending' && job.mechanicId == appState.user?.uid
+    ).toList();
     final activeJobs = allJobs.where((job) => 
       job.status == 'In Progress' && job.mechanicId == appState.user?.uid
     ).toList();
@@ -120,7 +241,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                     color: const Color(0xFF161426),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFF302B53).withOpacity(0.5),
+                      color: const Color(0xFF302B53).withValues(alpha: 0.5),
                       width: 1.2,
                     ),
                   ),
@@ -164,9 +285,9 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E676).withOpacity(0.12),
+                          color: const Color(0xFF00E676).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF00E676).withOpacity(0.5)),
+                          border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           'Online',
@@ -201,7 +322,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
 
                 // Pending requests section
                 Text(
-                  'Incoming Booking Requests (${pendingJobs.length})',
+                  'Booking Requests (${pendingJobs.length})',
                   style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -238,7 +359,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
       decoration: BoxDecoration(
         color: const Color(0xFF161426),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF302B53).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFF302B53).withValues(alpha: 0.3)),
       ),
       child: Text(
         message,
@@ -452,31 +573,64 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                 ],
               )
             else
-              Container(
-                height: 46,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00B0FF), Color(0xFF9C27B0)],
-                  ),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _handleAcceptJob(appState, job.id),
-                    child: Center(
-                      child: Text(
-                        'Accept Job Request',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF302B53)),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _showContactDetailsSheet(job),
+                          child: Center(
+                            child: Text(
+                              'Contact',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      height: 46,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00B0FF), Color(0xFF9C27B0)],
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _handleAcceptJob(appState, job.id),
+                          child: Center(
+                            child: Text(
+                              'Accept Job',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),
