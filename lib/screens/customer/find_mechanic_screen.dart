@@ -71,7 +71,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           color: const Color(0xFF161426),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(0xFFFFB300).withOpacity(0.6),
+            color: const Color(0xFFFFB300).withValues(alpha: 0.6),
             width: 1.5,
           ),
         ),
@@ -215,8 +215,10 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
     try {
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 5),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 5),
+        ),
       );
       debugPrint("User location: ${position.latitude}, ${position.longitude}");
       
@@ -356,7 +358,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           initialChildSize: 0.75,
           minChildSize: 0.5,
           maxChildSize: 0.95,
-          expand: false,
+          expand: true,
           builder: (context, scrollController) {
             return QuickBookingSheet(
               mechanic: mechanic,
@@ -660,7 +662,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           color: const Color(0xFF161426),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: const Color(0xFF08693F).withOpacity(0.4), // Premium green border glow
+            color: const Color(0xFF08693F).withValues(alpha: 0.4), // Premium green border glow
             width: 1.5,
           ),
         ),
@@ -732,7 +734,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00E676).withOpacity(0.12),
+                              color: const Color(0xFF00E676).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -766,7 +768,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF00B0FF).withOpacity(0.12),
+                                      color: const Color(0xFF00B0FF).withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -807,7 +809,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
             Text(
               mech['desc'],
               style: GoogleFonts.inter(
-                color: const Color(0xFF8B88A5).withOpacity(0.8),
+                color: const Color(0xFF8B88A5).withValues(alpha: 0.8),
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
               ),
@@ -827,10 +829,10 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                       ...cats.map((cat) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF08693F).withOpacity(0.2),
+                              color: const Color(0xFF08693F).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: const Color(0xFF00E676).withOpacity(0.6),
+                                color: const Color(0xFF00E676).withValues(alpha: 0.6),
                                 width: 1,
                               ),
                             ),
@@ -949,10 +951,7 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
     final models = appState.getModelsForType(_selectedType);
-    final mechanicCats = (widget.mechanic['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
-    final services = appState.getServicesForType(_selectedType).where((s) {
-      return mechanicCats.contains(s.category);
-    }).toList();
+    final services = appState.getServicesForType(_selectedType);
 
     final total = _selectedServices.fold<double>(0.0, (prev, item) => prev + item.price);
 
@@ -963,234 +962,261 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
         color: Color(0xFF161426),
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: ListView(
-        controller: widget.scrollController,
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Book ${widget.mechanic['name']}',
-                style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2.5),
               ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Book ${widget.mechanic['name']}',
+                  style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          if (hasPreselectedVehicle) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D0B18),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFF302B53),
-                  width: 1.2,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _selectedType == VehicleType.car
-                        ? Icons.directions_car_outlined
-                        : _selectedType == VehicleType.bike
-                            ? Icons.two_wheeler_outlined
-                            : Icons.electric_car_outlined,
-                    color: const Color(0xFF00E676),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              children: [
+                if (hasPreselectedVehicle) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D0B18),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFF302B53),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Vehicle Details',
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF8B88A5),
-                            fontSize: 11,
-                          ),
+                        Icon(
+                          _selectedType == VehicleType.car
+                              ? Icons.directions_car_outlined
+                              : _selectedType == VehicleType.bike
+                                  ? Icons.two_wheeler_outlined
+                                  : Icons.electric_car_outlined,
+                          color: const Color(0xFF00E676),
+                          size: 20,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$_selectedModel (${_selectedType.displayName})',
-                          style: GoogleFonts.outfit(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Vehicle Details',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF8B88A5),
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$_selectedModel (${_selectedType.displayName})',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                ] else ...[
+                  // Vehicle Type Selector Row
+                  Row(
+                    children: [
+                      _buildTypeButton('Car', VehicleType.car),
+                      const SizedBox(width: 8),
+                      _buildTypeButton('Bike', VehicleType.bike),
+                      const SizedBox(width: 8),
+                      _buildTypeButton('EV', VehicleType.ev),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Model Dropdown
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D0B18),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF302B53)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        dropdownColor: const Color(0xFF161426),
+                        value: _selectedModel,
+                        hint: Text('Select Model', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
+                        isExpanded: true,
+                        style: GoogleFonts.inter(color: Colors.white),
+                        items: models.map((model) {
+                          return DropdownMenuItem<String>(
+                            value: model.name,
+                            child: Text(model.name),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedModel = val;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ] else ...[
-            // Vehicle Type Selector Row
-            Row(
-              children: [
-                _buildTypeButton('Car', VehicleType.car),
-                const SizedBox(width: 8),
-                _buildTypeButton('Bike', VehicleType.bike),
-                const SizedBox(width: 8),
-                _buildTypeButton('EV', VehicleType.ev),
+                // Services selector header
+                Text(
+                  'Select Services:',
+                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                ...services.map((s) {
+                  final isSelected = _selectedServices.contains(s);
+                  return CheckboxListTile(
+                    title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
+                    subtitle: Text('₹${s.price.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
+                    value: isSelected,
+                    activeColor: const Color(0xFF00E676),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedServices.add(s);
+                        } else {
+                          _selectedServices.remove(s);
+                        }
+                      });
+                    },
+                  );
+                }),
               ],
             ),
-            const SizedBox(height: 16),
-            // Model Dropdown
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D0B18),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF302B53)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  dropdownColor: const Color(0xFF161426),
-                  value: _selectedModel,
-                  hint: Text('Select Model', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
-                  isExpanded: true,
-                  style: GoogleFonts.inter(color: Colors.white),
-                  items: models.map((model) {
-                    return DropdownMenuItem<String>(
-                      value: model.name,
-                      child: Text(model.name),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedModel = val;
-                    });
-                  },
+          ),
+          // Fixed Bottom Bar
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: Color(0xFF302B53),
+                  width: 1.2,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-          // Services selector header
-          Text(
-            'Select Services:',
-            style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          // Service list
-          Container(
-            constraints: const BoxConstraints(maxHeight: 180),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: services.length,
-              itemBuilder: (context, index) {
-                final s = services[index];
-                final isSelected = _selectedServices.contains(s);
-                return CheckboxListTile(
-                  title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
-                  subtitle: Text('₹${s.price.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
-                  value: isSelected,
-                  activeColor: const Color(0xFF00E676),
-                  onChanged: (checked) {
-                    setState(() {
-                      if (checked == true) {
-                        _selectedServices.add(s);
-                      } else {
-                        _selectedServices.remove(s);
-                      }
-                    });
-                  },
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Total Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Total Amount', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
-              Text('₹${total.toStringAsFixed(2)}', style: GoogleFonts.outfit(fontSize: 18, color: const Color(0xFF00E676), fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Confirm booking button
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                colors: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
-                    ? [const Color(0xFF00E676), const Color(0xFF00B0FF)]
-                    : [const Color(0xFF302B53), const Color(0xFF302B53)],
-              ),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
-                    ? () async {
-                        setState(() => _isBooking = true);
-                        
-                        // Call helper to check phone number and fetch location
-                        final prepResult = await BookingUtils.prepareForBooking(context);
-                        if (!prepResult.success) {
-                          if (mounted) {
-                            setState(() => _isBooking = false);
-                          }
-                          return;
-                        }
+            padding: const EdgeInsets.only(left: 24, right: 24, top: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Total Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Total Amount', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
+                    Text('₹${total.toStringAsFixed(2)}', style: GoogleFonts.outfit(fontSize: 18, color: const Color(0xFF00E676), fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Confirm booking button
+                Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
+                          ? [const Color(0xFF00E676), const Color(0xFF00B0FF)]
+                          : [const Color(0xFF302B53), const Color(0xFF302B53)],
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
+                          ? () async {
+                              setState(() => _isBooking = true);
+                              
+                              // Call helper to check phone number and fetch location
+                              final prepResult = await BookingUtils.prepareForBooking(context);
+                              if (!prepResult.success) {
+                                if (mounted) {
+                                  setState(() => _isBooking = false);
+                                }
+                                return;
+                              }
 
-                        // Setup the AppState selections so submitBooking registers it
-                        appState.selectVehicleType(_selectedType);
-                        appState.selectVehicleModel(_selectedModel!);
-                        appState.clearServiceSelection();
-                        for (final s in _selectedServices) {
-                          appState.toggleServiceSelection(s);
-                        }
+                              // Setup the AppState selections so submitBooking registers it
+                              appState.selectVehicleType(_selectedType);
+                              appState.selectVehicleModel(_selectedModel!);
+                              appState.clearServiceSelection();
+                              for (final s in _selectedServices) {
+                                appState.toggleServiceSelection(s);
+                              }
 
-                        // Submit booking
-                        final booking = await appState.submitBooking(
-                          latitude: prepResult.position?.latitude,
-                          longitude: prepResult.position?.longitude,
-                          bookingLocation: prepResult.address,
-                          mechanicId: widget.mechanic['mechanicId'] as String?,
-                          mechanicName: widget.mechanic['name'] as String?,
-                        );
-                        
-                        if (mounted) {
-                          Navigator.of(context).pop(); // close sheet
-                          if (booking != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Booking ${booking.id} created successfully with ${widget.mechanic['name']}!'),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: const Color(0xFF00E676),
+                              // Submit booking
+                              final booking = await appState.submitBooking(
+                                latitude: prepResult.position?.latitude,
+                                longitude: prepResult.position?.longitude,
+                                bookingLocation: prepResult.address,
+                                mechanicId: widget.mechanic['mechanicId'] as String?,
+                                mechanicName: widget.mechanic['name'] as String?,
+                              );
+                              
+                              if (context.mounted) {
+                                Navigator.of(context).pop(); // close sheet
+                                if (booking != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Booking ${booking.id} created successfully with ${widget.mechanic['name']}!'),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: const Color(0xFF00E676),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      child: Center(
+                        child: _isBooking
+                            ? const CircularProgressIndicator(color: Color(0xFF0D0B18))
+                            : Text(
+                                'Confirm & Book Now',
+                                style: GoogleFonts.outfit(color: const Color(0xFF0D0B18), fontSize: 16, fontWeight: FontWeight.bold),
                               ),
-                            );
-                          }
-                        }
-                      }
-                    : null,
-                child: Center(
-                  child: _isBooking
-                      ? const CircularProgressIndicator(color: Color(0xFF0D0B18))
-                      : Text(
-                          'Confirm & Book Now',
-                          style: GoogleFonts.outfit(color: const Color(0xFF0D0B18), fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
