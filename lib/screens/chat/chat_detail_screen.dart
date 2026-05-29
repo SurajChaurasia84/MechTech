@@ -152,18 +152,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF161426),
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.recipientName,
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-            ),
-            Text(
-              widget.recipientRole,
-              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF8B88A5)),
-            ),
-          ],
+        titleSpacing: 0,
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('users').doc(widget.recipientId).snapshots(),
+          builder: (context, snapshot) {
+            String name = widget.recipientName;
+            String photoUrl = widget.recipientPhotoUrl;
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
+              if (data != null) {
+                name = data['name'] as String? ?? name;
+                photoUrl = data['photoUrl'] as String? ?? photoUrl;
+              }
+            }
+
+            return Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFF302B53),
+                  backgroundImage: photoUrl.isNotEmpty
+                      ? NetworkImage(photoUrl)
+                      : null,
+                  child: photoUrl.isEmpty
+                      ? const Icon(Icons.person, color: Colors.white, size: 18)
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                      ),
+                      Text(
+                        widget.recipientRole,
+                        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF8B88A5)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
