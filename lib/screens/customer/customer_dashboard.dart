@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import 'tabs/home_tab.dart';
@@ -122,23 +123,79 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 _currentIndex = index;
               });
             },
-            items: const [
-              BottomNavigationBarItem(
+            items: [
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
                 activeIcon: Icon(Icons.home_rounded),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.assignment_turned_in_outlined),
                 activeIcon: Icon(Icons.assignment_turned_in_rounded),
                 label: 'Bookings',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.forum_outlined),
-                activeIcon: Icon(Icons.forum_rounded),
+                icon: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('chats')
+                      .where('customerId', isEqualTo: appState.user?.uid)
+                      .where('unreadByCustomer', isEqualTo: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.forum_outlined),
+                        if (hasUnread)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                activeIcon: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('chats')
+                      .where('customerId', isEqualTo: appState.user?.uid)
+                      .where('unreadByCustomer', isEqualTo: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.forum_rounded),
+                        if (hasUnread)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
                 label: 'Messages',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline_rounded),
                 activeIcon: Icon(Icons.person_rounded),
                 label: 'Profile',
