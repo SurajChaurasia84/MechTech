@@ -47,10 +47,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           title: Row(
             children: [
               if (_currentIndex == 0) ...[
-                const Icon(
-                  Icons.build_rounded,
-                  color: Color(0xFF00E676),
-                  size: 24,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    'assets/icon.png',
+                    height: 28,
+                    width: 28,
+                  ),
                 ),
                 const SizedBox(width: 10),
               ],
