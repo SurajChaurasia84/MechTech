@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
-import 'find_mechanic_screen.dart';
+import 'select_mechanic_screen.dart';
 
 class ServiceSelectionScreen extends StatelessWidget {
   const ServiceSelectionScreen({super.key});
@@ -267,7 +267,7 @@ class ServiceSelectionScreen extends StatelessWidget {
                                   ? () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => const FindMechanicScreen(),
+                                          builder: (_) => const SelectMechanicScreen(),
                                         ),
                                       );
                                     }
