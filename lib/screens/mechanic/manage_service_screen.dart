@@ -30,8 +30,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   final List<String> _availableCategories = ['Oil Change', 'Engine', 'Brakes', 'Tyre', 'Electrical'];
   final List<String> _selectedCategories = [];
 
-  final List<String> _availableTags = ['#petrol', '#diesel', '#ev', '#4x4', '#suv'];
-  final List<String> _selectedTags = [];
+
 
   double? _latitude;
   double? _longitude;
@@ -70,78 +69,23 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       _selectedCategories.clear();
       _selectedCategories.addAll(post.categories);
 
-      _selectedTags.clear();
-      _selectedTags.addAll(post.tags);
+
 
       _latitude = post.latitude;
       _longitude = post.longitude;
       return;
     }
 
-    final appState = context.read<AppState>();
-    final uid = appState.user?.uid;
-    if (uid == null) return;
+    _titleController.clear();
+    _rateController.clear();
+    _expController.clear();
+    _bioController.clear();
+    _locationController.clear();
+    _selectedCategories.clear();
+    _latitude = null;
+    _longitude = null;
 
-    setState(() => _isLoading = true);
-
-    try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        
-        // Parse Rate (e.g. extract 40 from "₹40/hr")
-        final rawRate = data['rate'] as String? ?? '';
-        final rateMatch = RegExp(r'\d+').firstMatch(rawRate);
-        _rateController.text = rateMatch != null ? rateMatch.group(0)! : '';
-
-        // Parse Experience (e.g. extract 6 from "6 years of experience")
-        final rawExp = data['experience'] as String? ?? '';
-        final expMatch = RegExp(r'\d+').firstMatch(rawExp);
-        _expController.text = expMatch != null ? expMatch.group(0)! : '';
-
-        // Parse Bio (strip outer quotes if any)
-        var rawBio = data['desc'] as String? ?? '';
-        if (rawBio.startsWith('"') && rawBio.endsWith('"')) {
-          rawBio = rawBio.substring(1, rawBio.length - 1);
-        }
-        _bioController.text = rawBio;
-
-        // Parse Location
-        var rawLocation = data['location'] as String? ?? '';
-        if (rawLocation.startsWith('Works in ')) {
-          rawLocation = rawLocation.substring(9);
-        } else if (rawLocation.startsWith('Works with ')) {
-          // Fallback parsing for existing mock descriptions
-          final index = rawLocation.indexOf('in ');
-          if (index != -1) {
-            rawLocation = rawLocation.substring(index + 3);
-          }
-        }
-        _locationController.text = rawLocation;
-
-        if (rawLocation.trim().isEmpty) {
-          _fetchLocation();
-        }
-
-        // Load Categories
-        final cats = data['categories'] as List<dynamic>? ?? [];
-        _selectedCategories.clear();
-        _selectedCategories.addAll(cats.map((c) => c.toString()));
-
-        // Load Tags
-        final tags = data['tags'] as List<dynamic>? ?? [];
-        _selectedTags.clear();
-        _selectedTags.addAll(tags.map((t) => t.toString()));
-
-        // Load Coordinates
-        _latitude = (data['latitude'] as num?)?.toDouble();
-        _longitude = (data['longitude'] as num?)?.toDouble();
-      }
-    } catch (e) {
-      debugPrint("Error loading service profile: $e");
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    _fetchLocation();
   }
 
   Future<void> _fetchLocation() async {
@@ -296,7 +240,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'desc': bioStr,
         'location': locStr,
         'categories': _selectedCategories,
-        'tags': _selectedTags,
+        'tags': const <String>[],
         'latitude': _latitude,
         'longitude': _longitude,
         'createdAt': widget.existingPost?.createdAt ?? FieldValue.serverTimestamp(),
@@ -323,7 +267,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'desc': bioStr,
         'location': locStr,
         'categories': _selectedCategories,
-        'tags': _selectedTags,
+        'tags': const <String>[],
         'latitude': _latitude,
         'longitude': _longitude,
       });
@@ -382,6 +326,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                       controller: _titleController,
                       label: 'Job Post Title',
                       hint: 'e.g. Brake & Oil Change Expert',
+                      textCapitalization: TextCapitalization.words,
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Job title is required';
                         return null;
@@ -428,6 +373,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                       label: 'About Me / Biography Quote',
                       hint: 'Describe your expertise and service quality...',
                       maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Please add a short bio';
                         return null;
@@ -456,6 +402,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                             ),
                             child: TextFormField(
                               controller: _locationController,
+                              textCapitalization: TextCapitalization.words,
                               style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
                               decoration: InputDecoration(
                                 hintText: _isFetchingLocation ? 'Fetching location...' : 'Enter location or tap GPS',
@@ -570,51 +517,6 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Fuel Type Tags
-                    Text(
-                      'Vehicle Capability Tags',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _availableTags.map((tag) {
-                        final isSelected = _selectedTags.contains(tag);
-                        return FilterChip(
-                          label: Text(tag),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFF00B0FF).withOpacity(0.2),
-                          checkmarkColor: const Color(0xFF00B0FF),
-                          backgroundColor: const Color(0xFF161426),
-                          labelStyle: GoogleFonts.inter(
-                            color: isSelected ? const Color(0xFF00B0FF) : const Color(0xFF8B88A5),
-                            fontSize: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(
-                              color: isSelected ? const Color(0xFF00B0FF) : const Color(0xFF302B53),
-                            ),
-                          ),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedTags.add(tag);
-                              } else {
-                                _selectedTags.remove(tag);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
                     const SizedBox(height: 48),
 
                     // Save Button
@@ -664,6 +566,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     required String hint,
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -688,6 +591,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
             controller: controller,
             maxLines: maxLines,
             keyboardType: keyboardType,
+            textCapitalization: textCapitalization,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: hint,
