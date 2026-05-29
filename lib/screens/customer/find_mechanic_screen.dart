@@ -349,13 +349,21 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
   void _showQuickBookingSheet(Map<String, dynamic> mechanic) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161426),
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
       builder: (context) {
-        return QuickBookingSheet(mechanic: mechanic);
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return QuickBookingSheet(
+              mechanic: mechanic,
+              scrollController: scrollController,
+            );
+          },
+        );
       },
     );
   }
@@ -909,8 +917,13 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
 class QuickBookingSheet extends StatefulWidget {
   final Map<String, dynamic> mechanic;
+  final ScrollController? scrollController;
 
-  const QuickBookingSheet({super.key, required this.mechanic});
+  const QuickBookingSheet({
+    super.key,
+    required this.mechanic,
+    this.scrollController,
+  });
 
   @override
   State<QuickBookingSheet> createState() => _QuickBookingSheetState();
@@ -945,16 +958,19 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
 
     final hasPreselectedVehicle = appState.selectedVehicleType != null && appState.selectedVehicleModel != null;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF161426),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        controller: widget.scrollController,
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1074,6 +1090,7 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
             constraints: const BoxConstraints(maxHeight: 180),
             child: ListView.builder(
               shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: services.length,
               itemBuilder: (context, index) {
                 final s = services[index];
