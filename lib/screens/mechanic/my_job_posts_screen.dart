@@ -350,25 +350,6 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                             ),
                             const SizedBox(height: 6),
                           ],
-                          // Tags Wrap
-                          if (tags.isNotEmpty) ...[
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: tags.map((tag) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00B0FF).withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFF00B0FF).withOpacity(0.4), width: 1),
-                                    ),
-                                    child: Text(
-                                      tag,
-                                      style: GoogleFonts.inter(color: const Color(0xFF00B0FF), fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  )).toList(),
-                            ),
-                          ],
                           const Divider(color: Color(0xFF302B53), height: 24, thickness: 1),
                           // Edit / Delete Actions row
                           Row(
