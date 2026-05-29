@@ -150,7 +150,7 @@ class HistoryTab extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '₹${(booking.totalAmount * 1.18).toStringAsFixed(0)}', // Total with tax
+                      '₹${booking.totalAmount.toStringAsFixed(0)}',
                       style: GoogleFonts.outfit(
                         color: const Color(0xFF00E676),
                         fontSize: 17,
