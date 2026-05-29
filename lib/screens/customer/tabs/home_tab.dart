@@ -19,6 +19,10 @@ class _HomeTabState extends State<HomeTab> {
   String? _selectedModel;
   bool _isLoading = false;
 
+  // Static in-memory cache — persists across tab switches, only fetched once per session
+  static List<Map<String, dynamic>>? _cachedPopular;
+  static List<Map<String, dynamic>>? _cachedCategories;
+
   final List<Map<String, dynamic>> _popularServices = [];
   final List<Map<String, dynamic>> _serviceCategories = [];
 
@@ -62,6 +66,19 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Future<void> _loadActiveCategories() async {
+    // Serve from cache if already fetched
+    if (_cachedPopular != null && _cachedCategories != null) {
+      setState(() {
+        _popularServices
+          ..clear()
+          ..addAll(_cachedPopular!);
+        _serviceCategories
+          ..clear()
+          ..addAll(_cachedCategories!);
+      });
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -100,6 +117,10 @@ class _HomeTabState extends State<HomeTab> {
           'filter': cat,
         });
       }
+
+      // Save to static cache
+      _cachedPopular = List.unmodifiable(newPopular);
+      _cachedCategories = List.unmodifiable(newCategories);
 
       setState(() {
         _popularServices.clear();
@@ -616,7 +637,7 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
             ] else ...[
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
