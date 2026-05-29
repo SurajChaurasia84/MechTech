@@ -923,6 +923,16 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
   bool _isBooking = false;
 
   @override
+  void initState() {
+    super.initState();
+    final appState = context.read<AppState>();
+    if (appState.selectedVehicleType != null) {
+      _selectedType = appState.selectedVehicleType!;
+      _selectedModel = appState.selectedVehicleModel;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
     final models = appState.getModelsForType(_selectedType);
@@ -931,8 +941,9 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
       return mechanicCats.contains(s.category);
     }).toList();
 
-    final subtotal = _selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
-    final total = subtotal * 1.18; // plus 18% tax
+    final total = _selectedServices.fold<double>(0.0, (prev, item) => prev + item.price);
+
+    final hasPreselectedVehicle = appState.selectedVehicleType != null && appState.selectedVehicleModel != null;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -959,47 +970,99 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          // Vehicle Type Selector Row
-          Row(
-            children: [
-              _buildTypeButton('Car', VehicleType.car),
-              const SizedBox(width: 8),
-              _buildTypeButton('Bike', VehicleType.bike),
-              const SizedBox(width: 8),
-              _buildTypeButton('EV', VehicleType.ev),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Model Dropdown
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0D0B18),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF302B53)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                dropdownColor: const Color(0xFF161426),
-                value: _selectedModel,
-                hint: Text('Select Model', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
-                isExpanded: true,
-                style: GoogleFonts.inter(color: Colors.white),
-                items: models.map((model) {
-                  return DropdownMenuItem<String>(
-                    value: model.name,
-                    child: Text(model.name),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedModel = val;
-                  });
-                },
+          if (hasPreselectedVehicle) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D0B18),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF302B53),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _selectedType == VehicleType.car
+                        ? Icons.directions_car_outlined
+                        : _selectedType == VehicleType.bike
+                            ? Icons.two_wheeler_outlined
+                            : Icons.electric_car_outlined,
+                    color: const Color(0xFF00E676),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vehicle Details',
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF8B88A5),
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_selectedModel (${_selectedType.displayName})',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ] else ...[
+            // Vehicle Type Selector Row
+            Row(
+              children: [
+                _buildTypeButton('Car', VehicleType.car),
+                const SizedBox(width: 8),
+                _buildTypeButton('Bike', VehicleType.bike),
+                const SizedBox(width: 8),
+                _buildTypeButton('EV', VehicleType.ev),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Model Dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D0B18),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF302B53)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  dropdownColor: const Color(0xFF161426),
+                  value: _selectedModel,
+                  hint: Text('Select Model', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
+                  isExpanded: true,
+                  style: GoogleFonts.inter(color: Colors.white),
+                  items: models.map((model) {
+                    return DropdownMenuItem<String>(
+                      value: model.name,
+                      child: Text(model.name),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedModel = val;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Services selector header
           Text(
             'Select Services:',
@@ -1038,7 +1101,7 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Total (inc. tax)', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
+              Text('Total Amount', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
               Text('₹${total.toStringAsFixed(2)}', style: GoogleFonts.outfit(fontSize: 18, color: const Color(0xFF00E676), fontWeight: FontWeight.bold)),
             ],
           ),
