@@ -20,14 +20,17 @@ class FindMechanicScreen extends StatefulWidget {
 
 class _FindMechanicScreenState extends State<FindMechanicScreen> {
   late String _selectedCategory;
-  String _selectedTag = 'All';
   bool _isLoadingMechanics = true;
 
   final List<String> _categories = ['All'];
-  final List<String> _tags = ['All'];
 
   List<Map<String, dynamic>> _mechanics = [];
   Position? _currentPosition;
+  bool _isLocationServiceEnabled = true;
+  bool _isLocationPermissionGranted = true;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   void _sortMechanicsByDistance() {
     if (_currentPosition == null) return;
@@ -133,11 +136,20 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     _checkAndRequestLocationPermission();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkAndRequestLocationPermission() async {
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    setState(() {
+      _isLocationServiceEnabled = serviceEnabled;
+    });
     if (!serviceEnabled) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,6 +166,9 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
+        setState(() {
+          _isLocationPermissionGranted = false;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -167,6 +182,9 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     }
     
     if (permission == LocationPermission.deniedForever) {
+      setState(() {
+        _isLocationPermissionGranted = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -177,6 +195,23 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
       }
       return;
     } 
+
+    setState(() {
+      _isLocationPermissionGranted = true;
+    });
+
+    try {
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        debugPrint("Last known location resolved: ${lastKnown.latitude}, ${lastKnown.longitude}");
+        setState(() {
+          _currentPosition = lastKnown;
+        });
+        _sortMechanicsByDistance();
+      }
+    } catch (e) {
+      debugPrint("Error fetching last known location: $e");
+    }
 
     try {
       Position position = await Geolocator.getCurrentPosition(
@@ -198,7 +233,12 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
               children: [
                 const Icon(Icons.gps_fixed, color: Color(0xFF00E676), size: 16),
                 const SizedBox(width: 8),
-                Text('Location resolved! Showing nearest mechanics first.', style: GoogleFonts.inter(fontSize: 12)),
+                Expanded(
+                  child: Text(
+                    'Location resolved! Showing nearest mechanics first.',
+                    style: GoogleFonts.inter(fontSize: 12),
+                  ),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF161426),
@@ -221,15 +261,12 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
       final List<Map<String, dynamic>> loadedMechs = [];
       final Set<String> dynamicCategories = {'All'};
-      final Set<String> dynamicTags = {'All'};
 
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         final mechCats = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
-        final mechTags = (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
 
         dynamicCategories.addAll(mechCats);
-        dynamicTags.addAll(mechTags);
 
         loadedMechs.add({
           'id': doc.id,
@@ -253,8 +290,6 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
         _mechanics = loadedMechs;
         _categories.clear();
         _categories.addAll(dynamicCategories);
-        _tags.clear();
-        _tags.addAll(dynamicTags);
         _isLoadingMechanics = false;
       });
 
@@ -271,14 +306,28 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     return _mechanics.where((mech) {
       final categoryMatch = _selectedCategory == 'All' ||
           (mech['categories'] as List<String>).contains(_selectedCategory);
-      final tagMatch = _selectedTag == 'All' ||
-          (mech['tags'] as List<String>).contains(_selectedTag);
-      return categoryMatch && tagMatch;
+      final nameMatch = _searchQuery.isEmpty ||
+          (mech['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          (mech['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
+      return categoryMatch && nameMatch;
     }).toList();
   }
 
   void _handleBookNow(Map<String, dynamic> mechanic) {
     final appState = context.read<AppState>();
+    final currentUserId = appState.user?.uid;
+    final mechanicId = mechanic['mechanicId'] as String?;
+
+    if (mechanicId != null && mechanicId == currentUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("You cannot book your own service."),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     
     // Check if the customer already has vehicle type and services selected
     if (appState.selectedVehicleType != null && appState.selectedServices.isNotEmpty) {
@@ -318,6 +367,17 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
     final mechanicId = mech['mechanicId'];
     if (mechanicId == null) return;
+
+    if (mechanicId == currentUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("You cannot message yourself."),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     // Show loading spinner
     showDialog(
@@ -443,13 +503,36 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                decoration: InputDecoration(
+                  hintText: 'Search mechanic by name...',
+                  hintStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 16),
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
+              )
+            : null,
         actions: [
           IconButton(
-            icon: const Icon(Icons.tune_rounded, color: Colors.white),
+            icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded, color: Colors.white),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Advanced filters opening...')),
-              );
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _searchQuery = '';
+                } else {
+                  _isSearching = true;
+                }
+              });
             },
           ),
         ],
@@ -460,119 +543,78 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Screen Title
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Find a\n',
-                          style: GoogleFonts.outfit(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1.1,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'Mechanic',
-                          style: GoogleFonts.outfit(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF00E676),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Categories Horizontal List (Image 2 style)
-                SizedBox(
-                  height: 40,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final cat = _categories[index];
-                      final isSelected = _selectedCategory == cat;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 10.0),
-                        child: ChoiceChip(
-                          label: Text(cat),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
-                          disabledColor: const Color(0xFF161426),
-                          backgroundColor: const Color(0xFF161426),
-                          labelStyle: GoogleFonts.inter(
-                            color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
-                              width: 1.2,
+                if (!_isSearching)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Find a\n',
+                            style: GoogleFonts.outfit(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.1,
                             ),
                           ),
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = cat;
-                            });
-                          },
-                        ),
-                      );
-                    },
+                          TextSpan(
+                            text: 'Mechanic',
+                            style: GoogleFonts.outfit(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF00E676),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
 
-                // Tags Horizontal List (Image 2 style)
-                SizedBox(
-                  height: 34,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _tags.length,
-                    itemBuilder: (context, index) {
-                      final tag = _tags[index];
-                      final isSelected = _selectedTag == tag;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              _selectedTag = tag;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF161426) : const Color(0xFF161426).withOpacity(0.5),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isSelected ? const Color(0xFF00E676) : const Color(0xFF302B53).withOpacity(0.6),
+                // Categories Horizontal List (Image 2 style)
+                if (!_isSearching) ...[
+                  SizedBox(
+                    height: 40,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final cat = _categories[index];
+                        final isSelected = _selectedCategory == cat;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10.0),
+                          child: ChoiceChip(
+                            label: Text(cat),
+                            selected: isSelected,
+                            selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
+                            disabledColor: const Color(0xFF161426),
+                            backgroundColor: const Color(0xFF161426),
+                            labelStyle: GoogleFonts.inter(
+                              color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
                                 width: 1.2,
                               ),
                             ),
-                            child: Text(
-                              tag,
-                              style: GoogleFonts.inter(
-                                color: isSelected ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedCategory = cat;
+                              });
+                            },
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                ],
 
                 // Mechanics Vertical List
                 Expanded(
@@ -585,12 +627,12 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          itemCount: filteredMechanics.length + (_currentPosition == null ? 1 : 0),
+                          itemCount: filteredMechanics.length + ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? 1 : 0),
                           itemBuilder: (context, index) {
-                            if (_currentPosition == null && index == 0) {
+                            if ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) && index == 0) {
                               return _buildLocationPromptBanner();
                             }
-                            final mechIndex = _currentPosition == null ? index - 1 : index;
+                            final mechIndex = (!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? index - 1 : index;
                             final mech = filteredMechanics[mechIndex];
                             return _buildMechanicCard(mech);
                           },
@@ -622,10 +664,10 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
               children: [
                 // Mechanic Photo
                 Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Image.network(
@@ -634,7 +676,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         color: const Color(0xFF0D0B18),
-                        child: const Icon(Icons.person, color: Color(0xFF00E676), size: 36),
+                        child: const Icon(Icons.person, color: Color(0xFF00E676), size: 24),
                       );
                     },
                   ),
@@ -679,28 +721,6 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                       // Rating & Rate Row
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF08693F),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.star, color: Colors.white, size: 12),
-                                const SizedBox(width: 4),
-                                Text(
-                                  mech['rating'].toString(),
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
@@ -789,8 +809,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
             Builder(
               builder: (context) {
                 final cats = (mech['categories'] as List<dynamic>?)?.map((e) => e.toString()).where((c) => c != 'All').toList() ?? [];
-                final tags = (mech['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-                if (cats.isEmpty && tags.isEmpty) return const SizedBox.shrink();
+                if (cats.isEmpty) return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 4.0),
                   child: Wrap(
@@ -811,25 +830,6 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                               cat,
                               style: GoogleFonts.inter(
                                 color: const Color(0xFF00E676),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          )),
-                      ...tags.map((tag) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00B0FF).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFF00B0FF).withOpacity(0.6),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              tag,
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF00B0FF),
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
