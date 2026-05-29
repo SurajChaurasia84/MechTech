@@ -142,6 +142,37 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return '$hour:$minute $period';
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _formatDateLabel(DateTime date) {
+    final now = DateTime.now();
+    if (_isSameDay(date, now)) return 'Today';
+    if (_isSameDay(date, now.subtract(const Duration(days: 1)))) return 'Yesterday';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  Widget _buildDateChip(String label) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: const Color(0xFF8B88A5),
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -256,52 +287,75 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     final msg = docs[index].data() as Map<String, dynamic>;
                     final isMe = msg['senderId'] == currentUserId;
                     final time = _formatMessageTime(msg['timestamp'] as Timestamp?);
+                    final ts = msg['timestamp'] as Timestamp?;
+                    final msgDate = ts?.toDate();
 
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: Column(
-                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.75,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isMe ? const Color(0xFF08693F) : const Color(0xFF161426),
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(16),
-                                  topRight: const Radius.circular(16),
-                                  bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                  bottomRight: Radius.circular(isMe ? 0 : 16),
+                    // Show date separator if this is first msg OR date changed
+                    bool showDateSep = false;
+                    if (msgDate != null) {
+                      if (index == 0) {
+                        showDateSep = true;
+                      } else {
+                        final prevMsg = docs[index - 1].data() as Map<String, dynamic>;
+                        final prevTs = prevMsg['timestamp'] as Timestamp?;
+                        final prevDate = prevTs?.toDate();
+                        if (prevDate != null && !_isSameDay(msgDate, prevDate)) {
+                          showDateSep = true;
+                        }
+                      }
+                    }
+
+                    return Column(
+                      children: [
+                        if (showDateSep && msgDate != null)
+                          _buildDateChip(_formatDateLabel(msgDate)),
+                        Align(
+                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Column(
+                              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isMe ? const Color(0xFF08693F) : const Color(0xFF161426),
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(16),
+                                      topRight: const Radius.circular(16),
+                                      bottomLeft: Radius.circular(isMe ? 16 : 0),
+                                      bottomRight: Radius.circular(isMe ? 0 : 16),
+                                    ),
+                                    border: Border.all(
+                                      color: isMe ? Colors.transparent : const Color(0xFF302B53),
+                                      width: 1.0,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    msg['text'] ?? '',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      height: 1.3,
+                                    ),
+                                  ),
                                 ),
-                                border: Border.all(
-                                  color: isMe ? Colors.transparent : const Color(0xFF302B53),
-                                  width: 1.0,
+                                const SizedBox(height: 4),
+                                Text(
+                                  time,
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF8B88A5),
+                                    fontSize: 10,
+                                  ),
                                 ),
-                              ),
-                              child: Text(
-                                msg['text'] ?? '',
-                                style: GoogleFonts.inter(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  height: 1.3,
-                                ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              time,
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF8B88A5),
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     );
                   },
                 );
@@ -315,7 +369,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               color: const Color(0xFF161426),
               border: Border(
                 top: BorderSide(
-                  color: const Color(0xFF302B53).withOpacity(0.5),
+                  color: const Color(0xFF302B53).withValues(alpha: 0.5),
                   width: 1.0,
                 ),
               ),
