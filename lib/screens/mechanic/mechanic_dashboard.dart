@@ -32,13 +32,28 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF161426),
           elevation: 0,
-          title: Text(
-            _getAppBarTitle(),
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-              color: Colors.white,
-            ),
+          title: Row(
+            children: [
+              if (_currentIndex == 0) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    'assets/icon.png',
+                    height: 28,
+                    width: 28,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Text(
+                _getAppBarTitle(),
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.white,
+                ),
+              ),
+            ],
           ),
           automaticallyImplyLeading: false, // Don't show back button for top level dashboard
           actions: [
