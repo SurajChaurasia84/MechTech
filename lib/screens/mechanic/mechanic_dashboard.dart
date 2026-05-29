@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'tabs/mechanic_home_tab.dart';
 import 'tabs/mechanic_earnings_tab.dart';
 import 'tabs/mechanic_profile_tab.dart';
@@ -20,6 +21,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
     return PopScope(
       canPop: _currentIndex == 0,
       onPopInvokedWithResult: (didPop, result) {
@@ -136,16 +138,44 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                 ),
                 // Empty space for FloatingActionButton
                 const SizedBox(width: 48),
-                // Messages button
+                 // Messages button
                 Expanded(
                   child: InkWell(
                     onTap: () => setState(() => _currentIndex = 2),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _currentIndex == 2 ? Icons.forum : Icons.forum_outlined,
-                          color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('chats')
+                              .where('mechanicId', isEqualTo: appState.user?.uid)
+                              .where('unreadByMechanic', isEqualTo: true)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  _currentIndex == 2 ? Icons.forum : Icons.forum_outlined,
+                                  color: _currentIndex == 2 ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                                ),
+                                if (hasUnread)
+                                  Positioned(
+                                    top: -2,
+                                    right: -2,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.redAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 2),
                         Text(
