@@ -61,10 +61,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     final selectedServices = appState.selectedServices;
 
     // Prices calculation
-    final subtotal = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
-    const taxRate = 0.18; // 18% GST/Service tax
-    final tax = subtotal * taxRate;
-    final total = subtotal + tax;
+    final total = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
 
     if (_isSuccess && _bookingResult != null) {
       return _buildSuccessScreen(context, _bookingResult!);
@@ -281,7 +278,6 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                         }),
                         const SizedBox(height: 24),
 
-                        // Cost Breakdown Card
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
@@ -289,32 +285,24 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFF302B53), width: 1.2),
                           ),
-                          child: Column(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _buildCostRow('Subtotal', subtotal),
-                              const SizedBox(height: 12),
-                              _buildCostRow('GST / Service Tax (18%)', tax),
-                              const Divider(color: Color(0xFF302B53), height: 24, thickness: 1.2),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Grand Total',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    '₹${total.toStringAsFixed(2)}',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF00E676),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                'Total Amount',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                '₹${total.toStringAsFixed(2)}',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF00E676),
+                                ),
                               ),
                             ],
                           ),
@@ -381,28 +369,6 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     );
   }
 
-  Widget _buildCostRow(String title, double value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            color: const Color(0xFF8B88A5),
-            fontSize: 14,
-          ),
-        ),
-        Text(
-          '₹${value.toStringAsFixed(2)}',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildSuccessScreen(BuildContext context, ServiceBooking booking) {
     return Scaffold(
@@ -512,11 +478,11 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Total Paid (with Tax)',
+                            'Total Paid',
                             style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
                           ),
                           Text(
-                            '₹${(booking.totalAmount * 1.18).toStringAsFixed(2)}',
+                            '₹${booking.totalAmount.toStringAsFixed(2)}',
                             style: GoogleFonts.outfit(color: const Color(0xFF00B0FF), fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],
