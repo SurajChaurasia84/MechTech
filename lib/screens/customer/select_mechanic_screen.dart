@@ -95,13 +95,29 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           .get();
 
       final List<Map<String, dynamic>> loadedMechs = [];
+      final appState = Provider.of<AppState>(context, listen: false);
+      final customerModel = appState.selectedVehicleModel;
+      final customerType = appState.selectedVehicleType;
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
+        final postVehicleCategory = data['vehicleCategory'] as String? ?? 'car';
 
-        // Filter by vehicle type if provided
+        // Filter by vehicle type if provided, else filter by customer type
         if (widget.vehicleTypeFilter != null) {
-          final postVehicleCategory = data['vehicleCategory'] as String? ?? 'car';
           if (postVehicleCategory.toLowerCase() != widget.vehicleTypeFilter!.toLowerCase()) {
+            continue;
+          }
+        } else if (customerType != null) {
+          if (postVehicleCategory.toLowerCase() != customerType.name.toLowerCase()) {
+            continue;
+          }
+        }
+
+        // Filter by vehicle model if the post specifies a model
+        final postVehicleModel = data['vehicleModel'] as String?;
+        if (postVehicleModel != null && postVehicleModel.isNotEmpty) {
+          if (customerModel == null || customerModel.toLowerCase() != postVehicleModel.toLowerCase()) {
             continue;
           }
         }
@@ -136,6 +152,8 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           'latitude': (data['latitude'] as num?)?.toDouble(),
           'longitude': (data['longitude'] as num?)?.toDouble(),
           'specializationRates': specializationRates,
+          'vehicleCategory': postVehicleCategory,
+          'vehicleModel': postVehicleModel,
         });
       }
 
