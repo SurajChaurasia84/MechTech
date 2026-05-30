@@ -18,6 +18,7 @@ class AppState extends ChangeNotifier {
   String? _customerAddress;
   VehicleType? _selectedVehicleType;
   String? _selectedVehicleModel;
+  List<ServiceItem> _activeServices = [];
   final List<ServiceItem> _selectedServices = [];
   final List<ServiceBooking> _bookings = [];
   final List<ServiceBooking> _allGlobalBookings = [];
@@ -44,6 +45,7 @@ class AppState extends ChangeNotifier {
               if (vTypeStr == 'ev') _selectedVehicleType = VehicleType.ev;
             }
             _selectedVehicleModel = data?['selectedVehicleModel'] as String?;
+            await fetchActiveServices();
           }
           _userRole ??= 'customer';
         } catch (e) {
@@ -63,6 +65,7 @@ class AppState extends ChangeNotifier {
         _userRole = null;
         _bookings.clear();
         _allGlobalBookings.clear();
+        _activeServices.clear();
       }
       _isAuthLoading = false;
       notifyListeners();
@@ -493,7 +496,74 @@ class AppState extends ChangeNotifier {
   }
 
   List<ServiceItem> getServicesForType(VehicleType type) {
+    if (_selectedVehicleType == type && _activeServices.isNotEmpty) {
+      return _activeServices;
+    }
     return _allServices.where((s) => s.vehicleType == type).toList();
+  }
+
+  Future<void> fetchActiveServices() async {
+    final typeStr = _selectedVehicleType?.name;
+    final modelStr = _selectedVehicleModel;
+    if (typeStr == null || modelStr == null) {
+      _activeServices = [];
+      return;
+    }
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('job_posts')
+          .where('vehicleCategory', isEqualTo: typeStr)
+          .where('vehicleModel', isEqualTo: modelStr)
+          .get();
+
+      final Map<String, ServiceItem> dynamicServicesMap = {};
+
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+        final specializationRates = Map<String, int>.from(
+          (data['specializationRates'] as Map<String, dynamic>? ?? {}).map(
+            (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0),
+          ),
+        );
+
+        for (final serviceName in categories) {
+          final rate = specializationRates[serviceName] ?? 0;
+          if (rate > 0) {
+            if (dynamicServicesMap.containsKey(serviceName)) {
+              // Keep minimum price across all mechanics
+              final existing = dynamicServicesMap[serviceName]!;
+              if (rate < existing.price) {
+                dynamicServicesMap[serviceName] = ServiceItem(
+                  id: existing.id,
+                  name: serviceName,
+                  price: rate.toDouble(),
+                  description: existing.description,
+                  duration: existing.duration,
+                  vehicleType: _selectedVehicleType!,
+                  category: serviceName,
+                );
+              }
+            } else {
+              dynamicServicesMap[serviceName] = ServiceItem(
+                id: 'dyn_${serviceName.hashCode}',
+                name: serviceName,
+                price: rate.toDouble(),
+                description: 'Professional $serviceName services offered by expert mechanics for $modelStr.',
+                duration: '2 hrs',
+                vehicleType: _selectedVehicleType!,
+                category: serviceName,
+              );
+            }
+          }
+        }
+      }
+
+      _activeServices = dynamicServicesMap.values.toList();
+    } catch (e) {
+      debugPrint("Error fetching dynamic services: $e");
+    }
   }
 
   // Google Sign-In Action
@@ -709,6 +779,7 @@ class AppState extends ChangeNotifier {
   Future<void> saveSelectedVehicle(VehicleType type, String model) async {
     _selectedVehicleType = type;
     _selectedVehicleModel = model;
+    await fetchActiveServices();
     notifyListeners();
 
     final currentUser = _user;
@@ -814,4 +885,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     return newBooking;
   }
+
+  Future<bool> cancelBooking(String bookingId) async {
+    final currentUser = _user;
+    
+    // Always remove from local list to reflect instantly in UI
+    _bookings.removeWhere((b) => b.id == bookingId);
+    notifyListeners();
+
+    if (currentUser == null) return true;
+
+    try {
+      // 1. Delete from customer's subcollection
+      await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('bookings')
+          .doc(bookingId)
+          .delete();
+
+      // 2. Delete from global root bookings collection
+      await _firestore
+          .collection('bookings')
+          .doc(bookingId)
+          .delete();
+
+      // Reload from Firestore to ensure clean status
+      await _loadBookingsFromFirestore(currentUser.uid);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint("Error cancelling booking: $e");
+      return false;
+    }
+  }
 }
+
