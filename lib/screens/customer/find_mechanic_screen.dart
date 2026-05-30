@@ -8,6 +8,7 @@ import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../utils/booking_utils.dart';
+import 'widgets/vehicle_selection_sheet.dart';
 
 class FindMechanicScreen extends StatefulWidget {
   final String? initialFilter;
@@ -256,13 +257,17 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
                 Expanded(
                   child: Text(
                     'Location resolved! Showing nearest mechanics first.',
-                    style: GoogleFonts.inter(fontSize: 12),
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ],
             ),
             backgroundColor: const Color(0xFF161426),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFF302B53), width: 1),
+            ),
           ),
         );
       }
@@ -311,6 +316,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
           'longitude': (data['longitude'] as num?)?.toDouble(),
           'specializationRates': specializationRates,
           'vehicleCategory': data['vehicleCategory'] as String? ?? 'car',
+          'vehicleModel': data['vehicleModel'] as String?,
         });
       }
 
@@ -328,28 +334,84 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
     }
   }
 
-  List<Map<String, dynamic>> _getFilteredMechanics() {
-    return _mechanics.where((mech) {
-      final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == _selectedVehicleCategory.toLowerCase();
-      final categoryMatch = _selectedCategory == 'All' ||
-          (mech['categories'] as List<String>).contains(_selectedCategory);
-      final nameMatch = _searchQuery.isEmpty ||
-          (mech['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (mech['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
-      return vehicleMatch && categoryMatch && nameMatch;
-    }).toList();
-  }
-
   List<String> _getCategoryChips() {
+    final appState = context.read<AppState>();
+    final customerModel = appState.selectedVehicleModel;
+    final customerType = appState.selectedVehicleType;
     final Set<String> cats = {'All'};
     for (final mech in _mechanics) {
       final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == _selectedVehicleCategory.toLowerCase();
-      if (vehicleMatch) {
+      
+      final postVehicleModel = mech['vehicleModel'] as String?;
+      bool modelMatch = true;
+      if (postVehicleModel != null && postVehicleModel.isNotEmpty) {
+        if (customerType != null && customerType.name.toLowerCase() == _selectedVehicleCategory.toLowerCase()) {
+          if (customerModel == null || customerModel.toLowerCase() != postVehicleModel.toLowerCase()) {
+            modelMatch = false;
+          }
+        } else {
+          modelMatch = false;
+        }
+      }
+
+      if (vehicleMatch && modelMatch) {
         final mechCats = (mech['categories'] as List<dynamic>?)?.map((c) => c.toString()) ?? [];
         cats.addAll(mechCats);
       }
     }
     return cats.toList();
+  }
+
+  Widget _buildMechanicsList(String vehicleCategory) {
+    final appState = context.read<AppState>();
+    final customerModel = appState.selectedVehicleModel;
+    final customerType = appState.selectedVehicleType;
+
+    // Filter the mechanics list for this category specifically
+    final filtered = _mechanics.where((mech) {
+      final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == vehicleCategory.toLowerCase();
+      
+      final postVehicleModel = mech['vehicleModel'] as String?;
+      bool modelMatch = true;
+      if (postVehicleModel != null && postVehicleModel.isNotEmpty) {
+        if (customerType != null && customerType.name.toLowerCase() == vehicleCategory.toLowerCase()) {
+          if (customerModel == null || customerModel.toLowerCase() != postVehicleModel.toLowerCase()) {
+            modelMatch = false;
+          }
+        } else {
+          modelMatch = false;
+        }
+      }
+
+      final categoryMatch = _selectedCategory == 'All' ||
+          (mech['categories'] as List<String>).contains(_selectedCategory);
+      final nameMatch = _searchQuery.isEmpty ||
+          (mech['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          (mech['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
+      return vehicleMatch && modelMatch && categoryMatch && nameMatch;
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          'No mechanics found matching filters.',
+          style: GoogleFonts.inter(color: const Color(0xFF8B88A5)),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      itemCount: filtered.length + ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? 1 : 0),
+      itemBuilder: (context, index) {
+        if ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) && index == 0) {
+          return _buildLocationPromptBanner();
+        }
+        final mechIndex = (!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? index - 1 : index;
+        final mech = filtered[mechIndex];
+        return _buildMechanicCard(mech);
+      },
+    );
   }
 
   String _getMechanicRateDisplay(Map<String, dynamic> mech, AppState appState) {
@@ -588,7 +650,6 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
 
   @override
   Widget build(BuildContext context) {
-    final filteredMechanics = _getFilteredMechanics();
     context.watch<AppState>();
 
     return Scaffold(
@@ -618,6 +679,60 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
               )
             : null,
         actions: [
+          if (!_isSearching)
+            Consumer<AppState>(
+              builder: (context, appState, _) {
+                final hasVehicle = appState.selectedVehicleModel != null;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => showVehicleSelectionBottomSheet(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: hasVehicle ? const Color(0xFF00E676).withValues(alpha: 0.12) : const Color(0xFF302B53),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: hasVehicle ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              hasVehicle
+                                  ? (appState.selectedVehicleType == VehicleType.car
+                                      ? Icons.directions_car_rounded
+                                      : appState.selectedVehicleType == VehicleType.bike
+                                          ? Icons.motorcycle_rounded
+                                          : Icons.electric_car_rounded)
+                                  : Icons.add_rounded,
+                              size: 14,
+                              color: hasVehicle ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                            ),
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 120),
+                              child: Text(
+                                hasVehicle ? appState.selectedVehicleModel! : 'Add Vehicle',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  color: hasVehicle ? Colors.white : const Color(0xFF8B88A5),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           IconButton(
             icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded, color: Colors.white),
             onPressed: () {
@@ -669,33 +784,31 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
                   ),
 
                 // Vehicle selection TabBar
-                if (!_isSearching) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF161426),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        indicatorColor: const Color(0xFF00E676),
-                        indicatorWeight: 3,
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
-                        unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14),
-                        labelColor: const Color(0xFF00E676),
-                        unselectedLabelColor: const Color(0xFF8B88A5),
-                        tabs: const [
-                          Tab(text: '🚗  Car'),
-                          Tab(text: '🏍  Bike'),
-                          Tab(text: '⚡  EV'),
-                        ],
-                      ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161426),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicatorColor: const Color(0xFF00E676),
+                      indicatorWeight: 3,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                      unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14),
+                      labelColor: const Color(0xFF00E676),
+                      unselectedLabelColor: const Color(0xFF8B88A5),
+                      tabs: const [
+                        Tab(text: '🚗  Car'),
+                        Tab(text: '🏍  Bike'),
+                        Tab(text: '⚡  EV'),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                ],
+                ),
+                const SizedBox(height: 12),
 
                 // Categories Horizontal List
                 if (!_isSearching) ...[
@@ -758,27 +871,16 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
                   const SizedBox(height: 16),
                 ],
 
-                // Mechanics Vertical List
+                // Mechanics Vertical List with TabBarView for swiping
                 Expanded(
-                  child: filteredMechanics.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No mechanics found matching filters.',
-                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5)),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          itemCount: filteredMechanics.length + ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if ((!_isLocationServiceEnabled || !_isLocationPermissionGranted) && index == 0) {
-                              return _buildLocationPromptBanner();
-                            }
-                            final mechIndex = (!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? index - 1 : index;
-                            final mech = filteredMechanics[mechIndex];
-                            return _buildMechanicCard(mech);
-                          },
-                        ),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildMechanicsList('car'),
+                      _buildMechanicsList('bike'),
+                      _buildMechanicsList('ev'),
+                    ],
+                  ),
                 ),
               ],
             ),
