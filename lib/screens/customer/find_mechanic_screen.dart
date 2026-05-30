@@ -1171,6 +1171,7 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
   String? _selectedModel;
   final List<ServiceItem> _selectedServices = [];
   bool _isBooking = false;
+  List<ServiceItem> _mechanicServices = [];
 
   @override
   void initState() {
@@ -1180,20 +1181,57 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
       _selectedType = appState.selectedVehicleType!;
       _selectedModel = appState.selectedVehicleModel;
     }
+    _updateMechanicServices(appState);
+  }
+
+  void _updateMechanicServices(AppState appState) {
+    final bool typeMatches = _selectedType.name.toLowerCase() == (widget.mechanic['vehicleCategory'] as String? ?? 'car').toLowerCase();
+    
+    final mechanicCategories = typeMatches
+        ? ((widget.mechanic['categories'] as List<dynamic>?)
+            ?.map((c) => c.toString())
+            .where((c) => c != 'All')
+            .toList() ?? [])
+        : <String>[];
+        
+    final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+    final catalogServices = appState.getServicesForType(_selectedType);
+
+    _mechanicServices = mechanicCategories.map((catName) {
+      // Find matching catalog service to reuse description and duration
+      final matchingCatalog = catalogServices.firstWhere(
+        (s) => s.category.toLowerCase() == catName.toLowerCase() || s.name.toLowerCase() == catName.toLowerCase(),
+        orElse: () => ServiceItem(
+          id: 'dyn_${catName.hashCode}',
+          name: catName,
+          price: (specRates[catName] ?? 0).toDouble(),
+          description: 'Professional $catName services offered by ${widget.mechanic['name']}.',
+          duration: '1 hr',
+          vehicleType: _selectedType,
+          category: catName,
+        ),
+      );
+
+      // Now create a custom ServiceItem for this mechanic with their custom rate
+      final rate = specRates[catName] ?? (specRates[matchingCatalog.name] ?? matchingCatalog.price.toInt());
+      return ServiceItem(
+        id: matchingCatalog.id.startsWith('dyn_') ? 'dyn_${catName.hashCode}' : matchingCatalog.id,
+        name: matchingCatalog.id.startsWith('dyn_') ? catName : matchingCatalog.name,
+        price: rate.toDouble(),
+        description: matchingCatalog.description,
+        duration: matchingCatalog.duration,
+        vehicleType: _selectedType,
+        category: matchingCatalog.category,
+      );
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
     final models = appState.getModelsForType(_selectedType);
-    final services = appState.getServicesForType(_selectedType);
 
-    final total = _selectedServices.fold<double>(0.0, (prev, item) {
-      final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
-      final customRate = specRates[item.category] ?? specRates[item.name];
-      final price = (customRate != null && customRate > 0) ? customRate.toDouble() : item.price;
-      return prev + price;
-    });
+    final total = _selectedServices.fold<double>(0.0, (prev, item) => prev + item.price);
 
     final hasPreselectedVehicle = appState.selectedVehicleType != null && appState.selectedVehicleModel != null;
 
@@ -1342,27 +1380,34 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                   style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
-                ...services.map((s) {
-                  final isSelected = _selectedServices.contains(s);
-                  final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
-                  final customRate = specRates[s.category] ?? specRates[s.name];
-                  final priceToShow = (customRate != null && customRate > 0) ? customRate.toDouble() : s.price;
-                  return CheckboxListTile(
-                    title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
-                    subtitle: Text('₹${priceToShow.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
-                    value: isSelected,
-                    activeColor: const Color(0xFF00E676),
-                    onChanged: (checked) {
-                      setState(() {
-                        if (checked == true) {
-                          _selectedServices.add(s);
-                        } else {
-                          _selectedServices.remove(s);
-                        }
-                      });
-                    },
-                  );
-                }),
+                if (_mechanicServices.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Text(
+                      'No services posted by this mechanic for ${_selectedType.displayName}.',
+                      style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  ..._mechanicServices.map((s) {
+                    final isSelected = _selectedServices.contains(s);
+                    return CheckboxListTile(
+                      title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
+                      subtitle: Text('₹${s.price.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
+                      value: isSelected,
+                      activeColor: const Color(0xFF00E676),
+                      onChanged: (checked) {
+                        setState(() {
+                          if (checked == true) {
+                            _selectedServices.add(s);
+                          } else {
+                            _selectedServices.remove(s);
+                          }
+                        });
+                      },
+                    );
+                  }),
               ],
             ),
           ),
@@ -1441,11 +1486,13 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                               if (context.mounted) {
                                 Navigator.of(context).pop(); // close sheet
                                 if (booking != null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Booking ${booking.id} created successfully with ${widget.mechanic['name']}!'),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: const Color(0xFF00E676),
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => BookingSummaryScreen(
+                                        mechanicId: widget.mechanic['mechanicId'] as String?,
+                                        mechanicName: widget.mechanic['name'] as String?,
+                                        bookingResult: booking,
+                                      ),
                                     ),
                                   );
                                 }
@@ -1476,10 +1523,12 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
     return Expanded(
       child: GestureDetector(
         onTap: () {
+          final appState = context.read<AppState>();
           setState(() {
             _selectedType = type;
             _selectedModel = null;
             _selectedServices.clear();
+            _updateMechanicServices(appState);
           });
         },
         child: Container(
