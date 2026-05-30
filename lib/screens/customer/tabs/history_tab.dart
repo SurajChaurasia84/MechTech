@@ -325,8 +325,117 @@ class HistoryTab extends StatelessWidget {
                   ),
                 ],
               ),
+              if (booking.status != 'Completed') ...[
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => _confirmAndCancelBooking(context, booking),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFFF5252),
+                    side: const BorderSide(color: Color(0xFFFF5252), width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(
+                    'Cancel Booking',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _confirmAndCancelBooking(BuildContext context, ServiceBooking booking) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF161426),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
+          ),
+          title: Text(
+            'Cancel Booking',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to cancel booking ${booking.id}? This action will permanently delete this booking.',
+            style: GoogleFonts.inter(
+              color: const Color(0xFF8B88A5),
+              height: 1.4,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'No, Keep It',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF8B88A5),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Close dialog
+                
+                // Show loading indicator dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (loadingContext) {
+                    Future.microtask(() async {
+                      final appState = context.read<AppState>();
+                      final success = await appState.cancelBooking(booking.id);
+                      
+                      if (loadingContext.mounted) {
+                        Navigator.of(loadingContext).pop(); // Dismiss loading spinner
+                      }
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Close bottom sheet details
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              success
+                                  ? 'Booking ${booking.id} cancelled successfully.'
+                                  : 'Failed to cancel booking. Please try again.',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: success ? const Color(0xFF00E676) : Colors.redAccent,
+                          ),
+                        );
+                      }
+                    });
+
+                    return const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFFF5252)),
+                    );
+                  },
+                );
+              },
+              child: Text(
+                'Yes, Cancel',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFFFF5252),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
