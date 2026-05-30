@@ -81,28 +81,30 @@ class AppState extends ChangeNotifier {
       _bookings.clear();
       for (final doc in snapshot.docs) {
         final data = doc.data();
-        // Resolve services by ID from the local catalog
-        final rawServices = (data['services'] as List<dynamic>?) ?? [];
-        final resolvedServices = rawServices
-            .map((s) => _allServices.firstWhere(
-                  (item) => item.id == s['id'],
-                  orElse: () => ServiceItem(
-                    id: s['id'] as String,
-                    name: s['name'] as String,
-                    price: (s['price'] as num).toDouble(),
-                    description: '',
-                    duration: '',
-                    vehicleType: VehicleType.car,
-                    category: '',
-                  ),
-                ))
-            .toList();
 
         // Parse vehicleType from stored string
         VehicleType vType = VehicleType.car;
         final vTypeStr = data['vehicleType'] as String? ?? 'car';
         if (vTypeStr == 'bike') vType = VehicleType.bike;
         if (vTypeStr == 'ev') vType = VehicleType.ev;
+
+        // Resolve services by ID using stored price
+        final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final resolvedServices = rawServices.map((s) {
+          final catalogItem = _allServices.cast<ServiceItem?>().firstWhere(
+            (item) => item?.id == s['id'],
+            orElse: () => null,
+          );
+          return ServiceItem(
+            id: s['id'] as String? ?? '',
+            name: s['name'] as String? ?? catalogItem?.name ?? '',
+            price: (s['price'] as num?)?.toDouble() ?? catalogItem?.price ?? 0.0,
+            description: catalogItem?.description ?? '',
+            duration: catalogItem?.duration ?? '',
+            vehicleType: catalogItem?.vehicleType ?? vType,
+            category: catalogItem?.category ?? '',
+          );
+        }).toList();
 
         // Parse bookingDate — Firestore Timestamp or fallback
         DateTime bookingDate = DateTime.now();
@@ -144,27 +146,28 @@ class AppState extends ChangeNotifier {
       _allGlobalBookings.clear();
       for (final doc in snapshot.docs) {
         final data = doc.data();
-        
-        final rawServices = (data['services'] as List<dynamic>?) ?? [];
-        final resolvedServices = rawServices
-            .map((s) => _allServices.firstWhere(
-                  (item) => item.id == s['id'],
-                  orElse: () => ServiceItem(
-                    id: s['id'] as String,
-                    name: s['name'] as String,
-                    price: (s['price'] as num).toDouble(),
-                    description: '',
-                    duration: '',
-                    vehicleType: VehicleType.car,
-                    category: '',
-                  ),
-                ))
-            .toList();
 
         VehicleType vType = VehicleType.car;
         final vTypeStr = data['vehicleType'] as String? ?? 'car';
         if (vTypeStr == 'bike') vType = VehicleType.bike;
         if (vTypeStr == 'ev') vType = VehicleType.ev;
+
+        final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final resolvedServices = rawServices.map((s) {
+          final catalogItem = _allServices.cast<ServiceItem?>().firstWhere(
+            (item) => item?.id == s['id'],
+            orElse: () => null,
+          );
+          return ServiceItem(
+            id: s['id'] as String? ?? '',
+            name: s['name'] as String? ?? catalogItem?.name ?? '',
+            price: (s['price'] as num?)?.toDouble() ?? catalogItem?.price ?? 0.0,
+            description: catalogItem?.description ?? '',
+            duration: catalogItem?.duration ?? '',
+            vehicleType: catalogItem?.vehicleType ?? vType,
+            category: catalogItem?.category ?? '',
+          );
+        }).toList();
 
         DateTime bookingDate = DateTime.now();
         final rawDate = data['bookingDate'];
@@ -681,6 +684,25 @@ class AppState extends ChangeNotifier {
 
   void clearServiceSelection() {
     _selectedServices.clear();
+    notifyListeners();
+  }
+
+  void applyMechanicRates(Map<String, int> specializationRates) {
+    for (int i = 0; i < _selectedServices.length; i++) {
+      final service = _selectedServices[i];
+      final rate = specializationRates[service.category] ?? specializationRates[service.name];
+      if (rate != null && rate > 0) {
+        _selectedServices[i] = ServiceItem(
+          id: service.id,
+          name: service.name,
+          price: rate.toDouble(),
+          description: service.description,
+          duration: service.duration,
+          vehicleType: service.vehicleType,
+          category: service.category,
+        );
+      }
+    }
     notifyListeners();
   }
 
