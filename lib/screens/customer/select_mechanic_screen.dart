@@ -114,6 +114,12 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           }
         }
 
+        final specializationRates = Map<String, int>.from(
+          (data['specializationRates'] as Map<String, dynamic>? ?? {}).map(
+            (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0),
+          ),
+        );
+
         loadedMechs.add({
           'id': doc.id,
           'mechanicId': data['mechanicId'] as String?,
@@ -129,6 +135,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           'tags': (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
           'latitude': (data['latitude'] as num?)?.toDouble(),
           'longitude': (data['longitude'] as num?)?.toDouble(),
+          'specializationRates': specializationRates,
         });
       }
 
@@ -185,6 +192,51 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
     }).toList();
   }
 
+  String _getMechanicRateDisplay(Map<String, dynamic> mech, AppState appState) {
+    final specRates = Map<String, int>.from(mech['specializationRates'] ?? {});
+    
+    // 1. If we have a specialty filter
+    if (widget.specialtyFilter != null) {
+      final rate = specRates[widget.specialtyFilter];
+      if (rate != null && rate > 0) {
+        return '₹$rate';
+      }
+    }
+    
+    // 2. If we have selected services in AppState
+    final selected = appState.selectedServices;
+    if (selected.isNotEmpty) {
+      double totalRate = 0;
+      bool foundAny = false;
+      for (final service in selected) {
+        final rate = specRates[service.category] ?? specRates[service.name];
+        if (rate != null && rate > 0) {
+          totalRate += rate;
+          foundAny = true;
+        } else {
+          totalRate += service.price;
+        }
+      }
+      if (foundAny) {
+        return '₹${totalRate.toStringAsFixed(0)}';
+      }
+    }
+    
+    // 3. Fallback: range from specializationRates
+    if (specRates.isNotEmpty) {
+      final values = specRates.values.where((v) => v > 0).toList();
+      if (values.isNotEmpty) {
+        values.sort();
+        if (values.first == values.last) {
+          return '₹${values.first}';
+        }
+        return '₹${values.first} - ₹${values.last}';
+      }
+    }
+    
+    return '₹30/hr';
+  }
+
   void _handleBookNow(Map<String, dynamic> mechanic) {
     final appState = context.read<AppState>();
     final currentUserId = appState.user?.uid;
@@ -201,6 +253,10 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
       return;
     }
 
+    // Apply mechanic rates to selected services in AppState
+    final specRates = Map<String, int>.from(mechanic['specializationRates'] ?? {});
+    appState.applyMechanicRates(specRates);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => BookingSummaryScreen(
@@ -212,6 +268,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
   }
 
   void _showMechanicDetails(Map<String, dynamic> mech) {
+    final appState = context.read<AppState>();
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF161426),
@@ -272,7 +329,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
               ),
               const SizedBox(height: 24),
               _buildDetailRow('Experience', mech['experience']),
-              _buildDetailRow('Base Rate', mech['rate']),
+              _buildDetailRow('Base Rate', _getMechanicRateDisplay(mech, appState)),
               _buildDetailRow('Location', mech['location']),
               const SizedBox(height: 16),
               Text(
@@ -348,6 +405,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _getFilteredMechanics();
+    final appState = context.watch<AppState>();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -475,7 +533,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Text(
-                                              mech['rate'],
+                                              _getMechanicRateDisplay(mech, appState),
                                               style: GoogleFonts.outfit(
                                                 color: const Color(0xFF00E676),
                                                 fontSize: 11,
