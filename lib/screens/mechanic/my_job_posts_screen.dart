@@ -224,6 +224,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                    final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
                   final tags = (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
                   final vehicleCategory = data['vehicleCategory'] as String? ?? 'car';
+                  final vehicleModel = data['vehicleModel'] as String?;
                   final specializationRates = Map<String, int>.from(
                     (data['specializationRates'] as Map<String, dynamic>? ?? {}).map(
                       (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0),
@@ -248,6 +249,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
                     vehicleCategory: vehicleCategory,
                     specializationRates: specializationRates,
+                    vehicleModel: vehicleModel,
                   );
 
                   return Padding(
@@ -306,13 +308,37 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                                 exp,
                                 style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 12),
                               ),
-                              const SizedBox(width: 12),
+                              if (vehicleModel != null && vehicleModel.isNotEmpty) ...[
+                                const SizedBox(width: 16),
+                                Icon(
+                                  vehicleCategory == 'bike'
+                                      ? Icons.motorcycle_rounded
+                                      : vehicleCategory == 'ev'
+                                          ? Icons.electric_car_rounded
+                                          : Icons.directions_car_filled_outlined,
+                                  color: const Color(0xFF00E676),
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  vehicleModel,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
                               const Icon(Icons.location_on_outlined, color: Color(0xFF8B88A5), size: 14),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   location,
-                                  overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 12),
                                 ),
                               ),
