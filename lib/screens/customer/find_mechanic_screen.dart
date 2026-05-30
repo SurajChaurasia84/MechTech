@@ -11,18 +11,23 @@ import '../../utils/booking_utils.dart';
 
 class FindMechanicScreen extends StatefulWidget {
   final String? initialFilter;
+  final String? initialVehicleCategory;
 
-  const FindMechanicScreen({super.key, this.initialFilter});
+  const FindMechanicScreen({
+    super.key,
+    this.initialFilter,
+    this.initialVehicleCategory,
+  });
 
   @override
   State<FindMechanicScreen> createState() => _FindMechanicScreenState();
 }
 
-class _FindMechanicScreenState extends State<FindMechanicScreen> {
+class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProviderStateMixin {
   late String _selectedCategory;
+  late String _selectedVehicleCategory;
+  late TabController _tabController;
   bool _isLoadingMechanics = true;
-
-  final List<String> _categories = ['All'];
 
   List<Map<String, dynamic>> _mechanics = [];
   Position? _currentPosition;
@@ -131,6 +136,18 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedVehicleCategory = widget.initialVehicleCategory ?? 'car';
+    final initialIndex = _selectedVehicleCategory == 'bike' ? 1 : (_selectedVehicleCategory == 'ev' ? 2 : 0);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          final types = ['car', 'bike', 'ev'];
+          _selectedVehicleCategory = types[_tabController.index];
+          _selectedCategory = 'All';
+        });
+      }
+    });
     _selectedCategory = widget.initialFilter ?? 'All';
     _fetchMechanicsFromFirestore();
     _checkAndRequestLocationPermission();
@@ -138,6 +155,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -270,6 +288,12 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
         dynamicCategories.addAll(mechCats);
 
+        final specializationRates = Map<String, int>.from(
+          (data['specializationRates'] as Map<String, dynamic>? ?? {}).map(
+            (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0),
+          ),
+        );
+
         loadedMechs.add({
           'id': doc.id,
           'mechanicId': data['mechanicId'] as String?,
@@ -285,13 +309,13 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
           'tags': (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
           'latitude': (data['latitude'] as num?)?.toDouble(),
           'longitude': (data['longitude'] as num?)?.toDouble(),
+          'specializationRates': specializationRates,
+          'vehicleCategory': data['vehicleCategory'] as String? ?? 'car',
         });
       }
 
       setState(() {
         _mechanics = loadedMechs;
-        _categories.clear();
-        _categories.addAll(dynamicCategories);
         _isLoadingMechanics = false;
       });
 
@@ -306,13 +330,71 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
 
   List<Map<String, dynamic>> _getFilteredMechanics() {
     return _mechanics.where((mech) {
+      final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == _selectedVehicleCategory.toLowerCase();
       final categoryMatch = _selectedCategory == 'All' ||
           (mech['categories'] as List<String>).contains(_selectedCategory);
       final nameMatch = _searchQuery.isEmpty ||
           (mech['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
           (mech['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
-      return categoryMatch && nameMatch;
+      return vehicleMatch && categoryMatch && nameMatch;
     }).toList();
+  }
+
+  List<String> _getCategoryChips() {
+    final Set<String> cats = {'All'};
+    for (final mech in _mechanics) {
+      final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == _selectedVehicleCategory.toLowerCase();
+      if (vehicleMatch) {
+        final mechCats = (mech['categories'] as List<dynamic>?)?.map((c) => c.toString()) ?? [];
+        cats.addAll(mechCats);
+      }
+    }
+    return cats.toList();
+  }
+
+  String _getMechanicRateDisplay(Map<String, dynamic> mech, AppState appState) {
+    final specRates = Map<String, int>.from(mech['specializationRates'] ?? {});
+    
+    // 1. If we have a category selected that is not 'All'
+    if (_selectedCategory != 'All') {
+      final rate = specRates[_selectedCategory];
+      if (rate != null && rate > 0) {
+        return '₹$rate';
+      }
+    }
+    
+    // 2. If we have selected services in AppState
+    final selected = appState.selectedServices;
+    if (selected.isNotEmpty) {
+      double totalRate = 0;
+      bool foundAny = false;
+      for (final service in selected) {
+        final rate = specRates[service.category] ?? specRates[service.name];
+        if (rate != null && rate > 0) {
+          totalRate += rate;
+          foundAny = true;
+        } else {
+          totalRate += service.price;
+        }
+      }
+      if (foundAny) {
+        return '₹${totalRate.toStringAsFixed(0)}';
+      }
+    }
+    
+    // 3. Fallback: range from specializationRates
+    if (specRates.isNotEmpty) {
+      final values = specRates.values.where((v) => v > 0).toList();
+      if (values.isNotEmpty) {
+        values.sort();
+        if (values.first == values.last) {
+          return '₹${values.first}';
+        }
+        return '₹${values.first} - ₹${values.last}';
+      }
+    }
+    
+    return '₹30/hr';
   }
 
   void _handleBookNow(Map<String, dynamic> mechanic) {
@@ -333,6 +415,10 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
     
     // Check if the customer already has vehicle type and services selected
     if (appState.selectedVehicleType != null && appState.selectedServices.isNotEmpty) {
+      // Apply mechanic rates to selected services in AppState
+      final specRates = Map<String, int>.from(mechanic['specializationRates'] ?? {});
+      appState.applyMechanicRates(specRates);
+
       // Direct booking summary
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -503,6 +589,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
   @override
   Widget build(BuildContext context) {
     final filteredMechanics = _getFilteredMechanics();
+    context.watch<AppState>();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -581,48 +668,93 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                     ),
                   ),
 
-                // Categories Horizontal List (Image 2 style)
+                // Vehicle selection TabBar
                 if (!_isSearching) ...[
-                  SizedBox(
-                    height: 40,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: _categories.length,
-                      itemBuilder: (context, index) {
-                        final cat = _categories[index];
-                        final isSelected = _selectedCategory == cat;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 10.0),
-                          child: ChoiceChip(
-                            label: Text(cat),
-                            selected: isSelected,
-                            selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
-                            disabledColor: const Color(0xFF161426),
-                            backgroundColor: const Color(0xFF161426),
-                            labelStyle: GoogleFonts.inter(
-                              color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
-                                width: 1.2,
-                              ),
-                            ),
-                            onSelected: (selected) {
-                              setState(() {
-                                _selectedCategory = cat;
-                              });
-                            },
-                          ),
-                        );
-                      },
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161426),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicatorColor: const Color(0xFF00E676),
+                        indicatorWeight: 3,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                        unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14),
+                        labelColor: const Color(0xFF00E676),
+                        unselectedLabelColor: const Color(0xFF8B88A5),
+                        tabs: const [
+                          Tab(text: '🚗  Car'),
+                          Tab(text: '🏍  Bike'),
+                          Tab(text: '⚡  EV'),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
+                ],
+
+                // Categories Horizontal List
+                if (!_isSearching) ...[
+                  Builder(
+                    builder: (context) {
+                      final chips = _getCategoryChips();
+                      
+                      // Safety check: if _selectedCategory is not in chips, reset it to 'All'
+                      if (!chips.contains(_selectedCategory)) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() {
+                              _selectedCategory = 'All';
+                            });
+                          }
+                        });
+                      }
+
+                      return SizedBox(
+                        height: 40,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: chips.length,
+                          itemBuilder: (context, index) {
+                            final cat = chips[index];
+                            final isSelected = _selectedCategory == cat;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 10.0),
+                              child: ChoiceChip(
+                                label: Text(cat),
+                                selected: isSelected,
+                                selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
+                                disabledColor: const Color(0xFF161426),
+                                backgroundColor: const Color(0xFF161426),
+                                labelStyle: GoogleFonts.inter(
+                                  color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedCategory = cat;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }
+                  ),
                   const SizedBox(height: 16),
                 ],
 
@@ -654,6 +786,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
   }
 
   Widget _buildMechanicCard(Map<String, dynamic> mech) {
+    final appState = context.read<AppState>();
     return Padding(
       padding: const EdgeInsets.only(bottom: 20.0),
       child: Container(
@@ -738,7 +871,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              mech['rate'],
+                              _getMechanicRateDisplay(mech, appState),
                               style: GoogleFonts.outfit(
                                 color: const Color(0xFF00E676),
                                 fontSize: 11,
@@ -953,7 +1086,12 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
     final models = appState.getModelsForType(_selectedType);
     final services = appState.getServicesForType(_selectedType);
 
-    final total = _selectedServices.fold<double>(0.0, (prev, item) => prev + item.price);
+    final total = _selectedServices.fold<double>(0.0, (prev, item) {
+      final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+      final customRate = specRates[item.category] ?? specRates[item.name];
+      final price = (customRate != null && customRate > 0) ? customRate.toDouble() : item.price;
+      return prev + price;
+    });
 
     final hasPreselectedVehicle = appState.selectedVehicleType != null && appState.selectedVehicleModel != null;
 
@@ -1104,9 +1242,12 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                 const SizedBox(height: 8),
                 ...services.map((s) {
                   final isSelected = _selectedServices.contains(s);
+                  final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+                  final customRate = specRates[s.category] ?? specRates[s.name];
+                  final priceToShow = (customRate != null && customRate > 0) ? customRate.toDouble() : s.price;
                   return CheckboxListTile(
                     title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
-                    subtitle: Text('₹${s.price.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
+                    subtitle: Text('₹${priceToShow.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
                     value: isSelected,
                     activeColor: const Color(0xFF00E676),
                     onChanged: (checked) {
@@ -1181,6 +1322,10 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                               for (final s in _selectedServices) {
                                 appState.toggleServiceSelection(s);
                               }
+
+                              // Apply mechanic rates to selected services in AppState
+                              final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+                              appState.applyMechanicRates(specRates);
 
                               // Submit booking
                               final booking = await appState.submitBooking(
