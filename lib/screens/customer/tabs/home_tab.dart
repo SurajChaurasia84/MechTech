@@ -140,7 +140,7 @@ class HomeTab extends StatelessWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => ChangeNotifierProvider.value(
                   value: appState,
-                  child: const FindMechanicScreen(),
+                  child: FindMechanicScreen(initialVehicleCategory: vehicleType),
                 ),
               )),
               child: Container(
