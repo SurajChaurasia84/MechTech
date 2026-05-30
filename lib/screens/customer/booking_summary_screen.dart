@@ -8,11 +8,13 @@ import '../../utils/booking_utils.dart';
 class BookingSummaryScreen extends StatefulWidget {
   final String? mechanicId;
   final String? mechanicName;
+  final ServiceBooking? bookingResult;
 
   const BookingSummaryScreen({
     super.key,
     this.mechanicId,
     this.mechanicName,
+    this.bookingResult,
   });
 
   @override
@@ -23,6 +25,15 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   bool _isSuccess = false;
   bool _isLoading = false;
   ServiceBooking? _bookingResult;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.bookingResult != null) {
+      _bookingResult = widget.bookingResult;
+      _isSuccess = true;
+    }
+  }
 
   Future<void> _bookService(AppState appState) async {
     setState(() => _isLoading = true);
