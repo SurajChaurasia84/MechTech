@@ -23,11 +23,25 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   final _expController = TextEditingController();
   final _bioController = TextEditingController();
   final _locationController = TextEditingController();
+  final _customModelController = TextEditingController();
 
   bool _isLoading = false;
   bool _isFetchingLocation = false;
   
   String _selectedCategory = 'car';
+  String? _selectedModel;
+
+  VehicleType get _vehicleTypeEnum {
+    switch (_selectedCategory) {
+      case 'bike':
+        return VehicleType.bike;
+      case 'ev':
+        return VehicleType.ev;
+      case 'car':
+      default:
+        return VehicleType.car;
+    }
+  }
   
   final Map<String, List<String>> _categorySpecializations = const {
     'car': [
@@ -109,6 +123,21 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       _locationController.text = rawLocation;
 
       _selectedCategory = post.vehicleCategory;
+      
+      final appState = Provider.of<AppState>(context, listen: false);
+      final models = appState.getModelsForType(_vehicleTypeEnum);
+      final exists = models.any((m) => m.name == post.vehicleModel);
+      if (exists) {
+        _selectedModel = post.vehicleModel;
+        _customModelController.clear();
+      } else if (post.vehicleModel != null && post.vehicleModel!.isNotEmpty) {
+        _selectedModel = '+ Add Custom Model';
+        _customModelController.text = post.vehicleModel!;
+      } else {
+        _selectedModel = null;
+        _customModelController.clear();
+      }
+
       _selectedCategories.clear();
       _selectedCategories.addAll(post.categories);
 
@@ -144,6 +173,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     _bioController.clear();
     _locationController.clear();
     _selectedCategory = 'car';
+    _selectedModel = null;
+    _customModelController.clear();
     _selectedCategories.clear();
     _specializationRates.clear();
     for (final entry in _customServices) {
@@ -312,6 +343,22 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate: vehicle model must be selected
+    if (_selectedModel == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a vehicle model'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final finalModelName = _selectedModel == '+ Add Custom Model'
+        ? _customModelController.text.trim()
+        : _selectedModel;
+
     // Validate: at least one service must be selected or added
     final hasCustom = _customServices.any(
       (e) => (e['name']?.text.trim() ?? '').isNotEmpty,
@@ -441,6 +488,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'longitude': _longitude,
         'createdAt': widget.existingPost?.createdAt ?? FieldValue.serverTimestamp(),
         'vehicleCategory': _selectedCategory,
+        'vehicleModel': finalModelName,
       };
 
       // Save only to global job_posts collection
@@ -477,6 +525,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context, listen: false);
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
       appBar: AppBar(
@@ -650,6 +699,91 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                         _buildCategoryChip('ev', 'EV', Icons.electric_car_rounded),
                       ],
                     ),
+                    const SizedBox(height: 20),
+
+                    // Vehicle Model Selection Dropdown
+                    Text(
+                      'Vehicle Model',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161426),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF302B53)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButtonFormField<String>(
+                          dropdownColor: const Color(0xFF161426),
+                          value: _selectedModel,
+                          style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                          hint: Text(
+                            'Select Vehicle Model',
+                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 14),
+                          ),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF00E676)),
+                          items: [
+                            ...appState.getModelsForType(_vehicleTypeEnum).map((model) {
+                              return DropdownMenuItem<String>(
+                                value: model.name,
+                                child: Text(
+                                  model.name,
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                              );
+                            }),
+                            DropdownMenuItem<String>(
+                              value: '+ Add Custom Model',
+                              child: Text(
+                                '+ Add Custom Model',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF00E676),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedModel = val;
+                            });
+                          },
+                          validator: (val) {
+                            if (val == null || val.isEmpty) {
+                              return 'Please select a vehicle model';
+                            }
+                            return null;
+                          },
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_selectedModel == '+ Add Custom Model') ...[
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        controller: _customModelController,
+                        label: 'Custom Vehicle Model Name',
+                        hint: 'Enter Vehicle Model Name',
+                        textCapitalization: TextCapitalization.words,
+                        validator: (val) {
+                          if (_selectedModel == '+ Add Custom Model') {
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Please enter custom vehicle model name';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     // Specialty Categories
@@ -1021,6 +1155,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         onTap: () {
           setState(() {
             _selectedCategory = value;
+            _selectedModel = null;
+            _customModelController.clear();
             _selectedCategories.clear();
           });
         },
