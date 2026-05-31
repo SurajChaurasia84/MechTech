@@ -20,7 +20,6 @@ class ManageServiceScreen extends StatefulWidget {
 class _ManageServiceScreenState extends State<ManageServiceScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _rateController = TextEditingController();
   final _expController = TextEditingController();
   final _bioController = TextEditingController();
   final _locationController = TextEditingController();
@@ -73,8 +72,11 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   };
 
   final List<String> _selectedCategories = [];
+  // rate per selected specialization (name -> rate string)
+  final Map<String, TextEditingController> _specializationRates = {};
 
-
+  // custom user-defined services: each entry = {name: ctrl, rate: ctrl}
+  final List<Map<String, TextEditingController>> _customServices = [];
 
   double? _latitude;
   double? _longitude;
@@ -89,10 +91,6 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     if (widget.existingPost != null) {
       final post = widget.existingPost!;
       _titleController.text = post.title;
-      
-      final rawRate = post.rate;
-      final rateMatch = RegExp(r'\d+').firstMatch(rawRate);
-      _rateController.text = rateMatch != null ? rateMatch.group(0)! : '';
 
       final rawExp = post.experience;
       final expMatch = RegExp(r'\d+').firstMatch(rawExp);
@@ -114,18 +112,45 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       _selectedCategories.clear();
       _selectedCategories.addAll(post.categories);
 
+      // Load persisted rates into controllers
+      _specializationRates.clear();
+      for (final cat in post.categories) {
+        final savedRate = post.specializationRates[cat];
+        _specializationRates[cat] = TextEditingController(
+          text: savedRate != null && savedRate > 0 ? savedRate.toString() : '',
+        );
+      }
+      // Load custom services: those in categories but NOT in predefined list
+      final predefined = _categorySpecializations[post.vehicleCategory] ?? [];
+      _customServices.clear();
+      for (final cat in post.categories) {
+        if (!predefined.contains(cat)) {
+          final savedRate = post.specializationRates[cat];
+          _customServices.add({
+            'name': TextEditingController(text: cat),
+            'rate': TextEditingController(
+              text: savedRate != null && savedRate > 0 ? savedRate.toString() : '',
+            ),
+          });
+        }
+      }
       _latitude = post.latitude;
       _longitude = post.longitude;
       return;
     }
 
     _titleController.clear();
-    _rateController.clear();
     _expController.clear();
     _bioController.clear();
     _locationController.clear();
     _selectedCategory = 'car';
     _selectedCategories.clear();
+    _specializationRates.clear();
+    for (final entry in _customServices) {
+      entry['name']?.dispose();
+      entry['rate']?.dispose();
+    }
+    _customServices.clear();
     _latitude = null;
     _longitude = null;
 
@@ -287,6 +312,82 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate: at least one service must be selected or added
+    final hasCustom = _customServices.any(
+      (e) => (e['name']?.text.trim() ?? '').isNotEmpty,
+    );
+    if (_selectedCategories.isEmpty && !hasCustom) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select or add at least one service to post a job'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Validate: every selected predefined specialization must have a rate
+    for (final cat in _selectedCategories) {
+      final rate = _specializationRates[cat]?.text.trim() ?? '';
+      if (rate.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please enter a charge for "$cat"'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (int.tryParse(rate) == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid charge for "$cat" — enter a number'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Validate: every custom service must have a name and a rate
+    for (int i = 0; i < _customServices.length; i++) {
+      final name = _customServices[i]['name']?.text.trim() ?? '';
+      final rate = _customServices[i]['rate']?.text.trim() ?? '';
+      if (name.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a name for all custom services'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (rate.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please enter a charge for "$name"'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (int.tryParse(rate) == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid charge for "$name" — enter a number'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
     final appState = context.read<AppState>();
     final uid = appState.user?.uid;
     if (uid == null) return;
@@ -294,12 +395,33 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final rateStr = '₹${_rateController.text.trim()}';
       final expStr = '${_expController.text.trim()} years of experience';
       final bioStr = '"${_bioController.text.trim()}"';
       final locStr = _locationController.text.trim().isNotEmpty
           ? 'Works in ${_locationController.text.trim()}'
           : 'Works in Bengaluru';
+
+      // Build rates map with only selected specializations that have a rate
+      final Map<String, dynamic> ratesMap = {};
+      for (final cat in _selectedCategories) {
+        final ctrl = _specializationRates[cat];
+        final rateVal = ctrl?.text.trim() ?? '';
+        if (rateVal.isNotEmpty) {
+          ratesMap[cat] = int.tryParse(rateVal) ?? 0;
+        }
+      }
+      // Include custom services
+      final List<String> allCategories = List.from(_selectedCategories);
+      for (final entry in _customServices) {
+        final name = entry['name']?.text.trim() ?? '';
+        final rateVal = entry['rate']?.text.trim() ?? '';
+        if (name.isNotEmpty) {
+          if (!allCategories.contains(name)) allCategories.add(name);
+          if (rateVal.isNotEmpty) {
+            ratesMap[name] = int.tryParse(rateVal) ?? 0;
+          }
+        }
+      }
 
       final postId = widget.existingPost?.id ?? 'JP-${DateTime.now().millisecondsSinceEpoch}';
 
@@ -309,11 +431,11 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'mechanicName': appState.currentCustomerName ?? 'Specialist Mechanic',
         'mechanicPhotoUrl': appState.currentCustomerPhotoUrl ?? '',
         'title': _titleController.text.trim(),
-        'rate': rateStr,
         'experience': expStr,
         'desc': bioStr,
         'location': locStr,
-        'categories': _selectedCategories,
+        'categories': allCategories,
+        'specializationRates': ratesMap,
         'tags': const <String>[],
         'latitude': _latitude,
         'longitude': _longitude,
@@ -321,31 +443,11 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'vehicleCategory': _selectedCategory,
       };
 
-      // 1. Save to user's subcollection
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('job_posts')
-          .doc(postId)
-          .set(postData, SetOptions(merge: true));
-
-      // 2. Save to global root collection
+      // Save only to global job_posts collection
       await FirebaseFirestore.instance
           .collection('job_posts')
           .doc(postId)
           .set(postData, SetOptions(merge: true));
-
-      // 3. Fallback update primary user document
-      await FirebaseFirestore.instance.collection('users').doc(uid).update({
-        'rate': rateStr,
-        'experience': expStr,
-        'desc': bioStr,
-        'location': locStr,
-        'categories': _selectedCategories,
-        'tags': const <String>[],
-        'latitude': _latitude,
-        'longitude': _longitude,
-      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -408,37 +510,17 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    // Price & Experience row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _rateController,
-                            label: 'Service Charge (₹)',
-                            hint: 'e.g. 500',
-                            keyboardType: TextInputType.number,
-                            validator: (val) {
-                              if (val == null || val.trim().isEmpty) return 'Required';
-                              if (int.tryParse(val.trim()) == null) return 'Invalid number';
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildTextField(
-                            controller: _expController,
-                            label: 'Experience (Years)',
-                            hint: 'e.g. 6',
-                            keyboardType: TextInputType.number,
-                            validator: (val) {
-                              if (val == null || val.trim().isEmpty) return 'Required';
-                              if (int.tryParse(val.trim()) == null) return 'Invalid number';
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
+                    // Experience field (full width)
+                    _buildTextField(
+                      controller: _expController,
+                      label: 'Experience (Years)',
+                      hint: 'e.g. 6',
+                      keyboardType: TextInputType.number,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Required';
+                        if (int.tryParse(val.trim()) == null) return 'Invalid number';
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
 
@@ -572,46 +654,322 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
                     // Specialty Categories
                     Text(
-                      'Specializations (Select all that apply)',
+                      'Specializations',
                       style: GoogleFonts.outfit(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: (_categorySpecializations[_selectedCategory] ?? []).map((cat) {
-                        final isSelected = _selectedCategories.contains(cat);
-                        return FilterChip(
-                          label: Text(cat),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFF08693F),
-                          checkmarkColor: Colors.white,
-                          backgroundColor: const Color(0xFF161426),
-                          labelStyle: GoogleFonts.inter(
-                            color: isSelected ? Colors.white : const Color(0xFF8B88A5),
-                            fontSize: 12,
+                    const SizedBox(height: 4),
+                    Text(
+                      'Select the services you offer and set a charge for each.',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF8B88A5),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161426),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF302B53)),
+                      ),
+                      child: Column(
+                        children: [
+                          ...(_categorySpecializations[_selectedCategory] ?? []).asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final cat = entry.value;
+                          final isSelected = _selectedCategories.contains(cat);
+                          final specs = (_categorySpecializations[_selectedCategory] ?? []);
+                          final isLast = index == specs.length - 1;
+
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedCategories.remove(cat);
+                                      _specializationRates[cat]?.dispose();
+                                      _specializationRates.remove(cat);
+                                    } else {
+                                      _selectedCategories.add(cat);
+                                      _specializationRates[cat] = TextEditingController();
+                                    }
+                                  });
+                                },
+                                borderRadius: BorderRadius.only(
+                                  topLeft: index == 0 ? const Radius.circular(16) : Radius.zero,
+                                  topRight: index == 0 ? const Radius.circular(16) : Radius.zero,
+                                  bottomLeft: isLast ? const Radius.circular(16) : Radius.zero,
+                                  bottomRight: isLast ? const Radius.circular(16) : Radius.zero,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 20,
+                                            height: 20,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: isSelected
+                                                  ? const Color(0xFF00E676)
+                                                  : Colors.transparent,
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF00E676)
+                                                    : const Color(0xFF302B53),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(Icons.check, size: 13, color: Color(0xFF0D0B18))
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              cat,
+                                              style: GoogleFonts.inter(
+                                                color: isSelected ? Colors.white : const Color(0xFF8B88A5),
+                                                fontSize: 13,
+                                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isSelected)
+                                            SizedBox(
+                                              width: 90,
+                                              height: 36,
+                                              child: TextField(
+                                                controller: _specializationRates[cat],
+                                                keyboardType: TextInputType.number,
+                                                style: GoogleFonts.inter(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: '₹ Rate',
+                                                  hintStyle: GoogleFonts.inter(
+                                                    color: const Color(0xFF8B88A5),
+                                                    fontSize: 12,
+                                                  ),
+                                                  contentPadding: const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 8,
+                                                  ),
+                                                  filled: true,
+                                                  fillColor: const Color(0xFF0D0B18),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF302B53),
+                                                    ),
+                                                  ),
+                                                  enabledBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF302B53),
+                                                    ),
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    borderSide: const BorderSide(
+                                                      color: Color(0xFF00E676),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (!isLast)
+                                const Divider(
+                                  height: 1,
+                                  color: Color(0xFF302B53),
+                                  indent: 48,
+                                ),
+                            ],
+                          );
+                        }),
+
+                          // Custom service rows
+                          ..._customServices.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final svc = entry.value;
+                            return Column(
+                              children: [
+                                const Divider(height: 1, color: Color(0xFF302B53), indent: 16, endIndent: 16),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  child: Row(
+                                    children: [
+                                      // Remove button
+                                      GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            svc['name']?.dispose();
+                                            svc['rate']?.dispose();
+                                            _customServices.removeAt(idx);
+                                          });
+                                        },
+                                        child: Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: const Color(0xFF2A1A2E),
+                                            border: Border.all(
+                                              color: Colors.redAccent.withValues(alpha: 0.6),
+                                              width: 1.2,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            size: 12,
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // Service name field
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 36,
+                                          child: TextField(
+                                            controller: svc['name'],
+                                            textCapitalization: TextCapitalization.words,
+                                            style: GoogleFonts.inter(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                            ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Service name',
+                                              hintStyle: GoogleFonts.inter(
+                                                color: const Color(0xFF8B88A5),
+                                                fontSize: 12,
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 8,
+                                              ),
+                                              filled: true,
+                                              fillColor: const Color(0xFF0D0B18),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(10),
+                                                borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(10),
+                                                borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(10),
+                                                borderSide: const BorderSide(color: Color(0xFF00B0FF)),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // Rate field
+                                      SizedBox(
+                                        width: 90,
+                                        height: 36,
+                                        child: TextField(
+                                          controller: svc['rate'],
+                                          keyboardType: TextInputType.number,
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: '₹ Rate',
+                                            hintStyle: GoogleFonts.inter(
+                                              color: const Color(0xFF8B88A5),
+                                              fontSize: 12,
+                                            ),
+                                            contentPadding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            ),
+                                            filled: true,
+                                            fillColor: const Color(0xFF0D0B18),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                              borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
+
+                          // + Add Services button
+                          Column(
+                            children: [
+                              const Divider(height: 1, color: Color(0xFF302B53)),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _customServices.add({
+                                      'name': TextEditingController(),
+                                      'rate': TextEditingController(),
+                                    });
+                                  });
+                                },
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(16),
+                                  bottomRight: Radius.circular(16),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.add_circle_outline_rounded,
+                                        color: Color(0xFF00B0FF),
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Add Services',
+                                        style: GoogleFonts.inter(
+                                          color: const Color(0xFF00B0FF),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(
-                              color: isSelected ? const Color(0xFF00E676) : const Color(0xFF302B53),
-                            ),
-                          ),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedCategories.add(cat);
-                              } else {
-                                _selectedCategories.remove(cat);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 48),
 
