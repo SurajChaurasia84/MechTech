@@ -17,6 +17,23 @@ class MechanicHomeTab extends StatefulWidget {
 class _MechanicHomeTabState extends State<MechanicHomeTab> {
   bool _isLoading = false;
 
+  void _openMap(double? latitude, double? longitude, String? address) async {
+    final Uri url;
+    if (latitude != null && longitude != null) {
+      url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+    } else if (address != null && address.isNotEmpty) {
+      url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
+    } else {
+      return;
+    }
+
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('Error launching maps URL: $e');
+    }
+  }
+
   void _handleMessageCustomer(ServiceBooking job, AppState appState) async {
     final mechanicId = appState.user?.uid;
     final customerId = job.customerId;
@@ -561,6 +578,27 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
                 ],
               ],
             ),
+            if (job.bookingLocation != null && job.bookingLocation!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _openMap(job.latitude, job.longitude, job.bookingLocation),
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, color: Color(0xFF8B88A5), size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        job.bookingLocation!,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 12),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: Color(0xFF8B88A5), size: 16),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
 
             // Services list summary
