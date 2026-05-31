@@ -1,709 +1,391 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../models/service_model.dart';
 import '../../../services/app_state.dart';
 import '../find_mechanic_screen.dart';
-import '../service_selection_screen.dart';
-import 'history_tab.dart';
 
-class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+class HomeTab extends StatelessWidget {
+  final String vehicleType; // 'car' | 'bike' | 'ev'
 
-  @override
-  State<HomeTab> createState() => _HomeTabState();
-}
+  const HomeTab({super.key, required this.vehicleType});
 
-class _HomeTabState extends State<HomeTab> {
-  String? _selectedModel;
-  bool _isLoading = false;
+  // ── Data ─────────────────────────────────────────────────────────────────────
 
-  // Static in-memory cache — persists across tab switches, only fetched once per session
-  static List<Map<String, dynamic>>? _cachedPopular;
-  static List<Map<String, dynamic>>? _cachedCategories;
-
-  final List<Map<String, dynamic>> _popularServices = [];
-  final List<Map<String, dynamic>> _serviceCategories = [];
-
-  final Map<String, Map<String, dynamic>> _categoryMeta = {
-    'Oil Change': {
-      'icon': Icons.opacity_rounded,
-      'desc': 'Engine oil and filter change',
-      'price': '₹199',
-      'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
-    },
-    'Tyre': {
-      'icon': Icons.adjust_rounded,
-      'desc': 'Rotation, balancing & alignment',
-      'price': '₹199',
-      'image': 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?q=80&w=300'
-    },
-    'Electrical': {
-      'icon': Icons.bolt_rounded,
-      'desc': 'Battery and wiring diagnostics',
-      'price': '₹399',
-      'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
-    },
-    'Engine': {
-      'icon': Icons.handyman_rounded,
-      'desc': 'Diagnostics and engine overhauls',
-      'price': '₹499',
-      'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
-    },
-    'Brakes': {
-      'icon': Icons.album_rounded,
-      'desc': 'Pads, rotors, and fluid flush',
-      'price': '₹349',
-      'image': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=300'
-    },
+  static const Map<String, _VehicleData> _data = {
+    'car': _VehicleData(
+      bannerImage: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80',
+      bannerTitle: 'Car Service',
+      bannerSubtitle: 'Starting at ₹1799',
+      bannerBadges: ['3 Months Warranty', '100% Genuine Spare Parts', 'Free Pick-Up & Drop'],
+      bannerColor: Color(0xFF9C27B0),
+      smallServices: [
+        _SmallService('Periodic Services', 'assets/service.png'),
+        _SmallService('Spa & Detailing', 'assets/car-wash.png'),
+        _SmallService('Tyres & Wheel', 'assets/car-tyre.png'),
+        _SmallService('Batteries', 'assets/battery.png'),
+        _SmallService('Brake & Suspension', 'assets/brake.png'),
+        _SmallService('Clutch & Body', 'assets/clutch.png'),
+        _SmallService('Lights & Mirror', 'assets/mirror.png'),
+        _SmallService('Denting & Paint', 'assets/denting.png'),
+        _SmallService('Custom Repair', 'assets/repair.png'),
+        _SmallService('Car Inspection', 'assets/suspension.png'),
+        _SmallService('Insurance', 'assets/insurance.png'),
+        _SmallService('Electrical', 'assets/electrical.png'),
+      ],
+    ),
+    'bike': _VehicleData(
+      bannerImage: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&q=80',
+      bannerTitle: '2-Wheeler Service',
+      bannerSubtitle: 'Starting at ₹299',
+      bannerBadges: ['Doorstep Service', 'Trained Mechanics', 'Quality Guaranteed'],
+      bannerColor: Color(0xFFFF6B35),
+      smallServices: [
+        _SmallService('Periodic Services', 'assets/service.png'),
+        _SmallService('Spa & Detailing', 'assets/spa.png'),
+        _SmallService('Tyres & Wheel Care', 'assets/bike-tyre.png'),
+        _SmallService('Batteries', 'assets/battery.png'),
+        _SmallService('Brake & Suspension', 'assets/brake.png'),
+        _SmallService('Clutch & Trans.', 'assets/clutch.png'),
+        _SmallService('Lights & Mirror', 'assets/mirror.png'),
+        _SmallService('Denting & Paint', 'assets/denting.png'),
+        _SmallService('Custom Repair', 'assets/repair.png'),
+        _SmallService('Accessories', 'assets/accessories.png'),
+        _SmallService('Electrical', 'assets/electrical.png'),
+        _SmallService('Body Parts', 'assets/suspension.png'),
+      ],
+    ),
+    'ev': _VehicleData(
+      bannerImage: 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&q=80',
+      bannerTitle: 'EV Service',
+      bannerSubtitle: 'Starting at ₹999',
+      bannerBadges: ['Certified EV Mechanics', 'Battery Health Check', 'Software Diagnostics'],
+      bannerColor: Color(0xFF00B0FF),
+      smallServices: [
+        _SmallService('Periodic Services', 'assets/service.png'),
+        _SmallService('Tyres & Wheel Care', 'assets/car-tyre.png'),
+        _SmallService('Battery Diagnostics', 'assets/ev-battery.png'),
+        _SmallService('Brake Check', 'assets/brake.png'),
+        _SmallService('Motor Service', 'assets/clutch.png'),
+        _SmallService('Lights & Wiring', 'assets/electrical.png'),
+        _SmallService('Body Panels', 'assets/suspension.png'),
+        _SmallService('Charging Fix', 'assets/repair.png'),
+        _SmallService('Accessories', 'assets/accessories.png'),
+      ],
+    ),
   };
 
   @override
-  void initState() {
-    super.initState();
-    _loadActiveCategories();
-  }
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final vehicle = _data[vehicleType]!;
 
-  Future<void> _loadActiveCategories() async {
-    // Serve from cache if already fetched
-    if (_cachedPopular != null && _cachedCategories != null) {
-      setState(() {
-        _popularServices
-          ..clear()
-          ..addAll(_cachedPopular!);
-        _serviceCategories
-          ..clear()
-          ..addAll(_cachedCategories!);
-      });
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('job_posts')
-          .get();
-
-      final Set<String> activeCats = {};
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final cats = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
-        activeCats.addAll(cats.where((c) => c != 'All'));
-      }
-
-      final List<Map<String, dynamic>> newPopular = [];
-      final List<Map<String, dynamic>> newCategories = [];
-
-      for (final cat in activeCats) {
-        final meta = _categoryMeta[cat] ?? {
-          'icon': Icons.handyman_rounded,
-          'desc': 'General vehicle service',
-          'price': '₹299/hr',
-          'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
-        };
-
-        newPopular.add({
-          'name': cat,
-          'icon': meta['icon'] as IconData,
-          'filter': cat,
-        });
-
-        newCategories.add({
-          'name': cat,
-          'price': meta['price'] as String,
-          'desc': meta['desc'] as String,
-          'image': meta['image'] as String,
-          'filter': cat,
-        });
-      }
-
-      // Save to static cache
-      _cachedPopular = List.unmodifiable(newPopular);
-      _cachedCategories = List.unmodifiable(newCategories);
-
-      setState(() {
-        _popularServices.clear();
-        _popularServices.addAll(newPopular);
-        _serviceCategories.clear();
-        _serviceCategories.addAll(newCategories);
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint("Error loading categories: $e");
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Widget _buildNoServicesPlaceholder() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161426),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF302B53), width: 1.2),
-      ),
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.build_circle_outlined, color: Color(0xFF00B0FF), size: 40),
-          const SizedBox(height: 12),
-          Text(
-            'No Registered Mechanics Yet',
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          // ── Banner ──────────────────────────────────────────────────────────
+          _Banner(vehicle: vehicle),
+
+          const SizedBox(height: 20),
+
+          // ── Section header ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'More Services',
+              style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
+
+          // ── Small 4-col Service Grid ─────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                color: const Color(0xFFE5E7EB), // Divider line color
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: vehicle.smallServices.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: vehicleType == 'ev' ? 3 : 4,
+                    crossAxisSpacing: 1, // 1px thin grid separator
+                    mainAxisSpacing: 1,
+                    childAspectRatio: vehicleType == 'ev' ? 1.05 : 0.9,
+                  ),
+                  itemBuilder: (ctx, i) => _SmallServiceCard(item: vehicle.smallServices[i]),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ── Find Mechanic CTA ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ChangeNotifierProvider.value(
+                  value: appState,
+                  child: const FindMechanicScreen(),
+                ),
+              )),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: const BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichText(
+                            text: TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Find a\n',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    height: 1.1,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: 'Mechanic',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF00E676),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(
+                                'Browse mechanics near you',
+                                style: GoogleFonts.inter(
+                                  color: const Color(0xFF8B88A5),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Color(0xFF8B88A5),
+                                size: 16,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Image.asset(
+                      'assets/mechanic.png',
+                      width: 70,
+                      height: 70,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.engineering_rounded,
+                        color: Color(0xFF00E676),
+                        size: 32,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Banner Widget ─────────────────────────────────────────────────────────────
+
+class _Banner extends StatelessWidget {
+  final _VehicleData vehicle;
+  const _Banner({required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+      height: 180,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: vehicle.bannerColor.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Background image
+            Image.network(
+              vehicle.bannerImage,
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : Container(color: const Color(0xFF161426)),
+              errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF161426)),
+            ),
+            // Dark gradient overlay
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.85),
+                    Colors.black.withValues(alpha: 0.2),
+                  ],
+                ),
+              ),
+            ),
+            // Text content
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    vehicle.bannerTitle.toUpperCase(),
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade700,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      vehicle.bannerSubtitle,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  ...vehicle.bannerBadges.map((badge) => Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded, size: 12, color: vehicle.bannerColor),
+                            const SizedBox(width: 5),
+                            Text(badge, style: GoogleFonts.inter(color: Colors.white70, fontSize: 11)),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+// ── Small Service Card (4-col) ────────────────────────────────────────────────
+
+class _SmallServiceCard extends StatelessWidget {
+  final _SmallService item;
+  const _SmallServiceCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            item.assetPath,
+            width: 44,
+            height: 44,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 44,
+              height: 44,
+              color: const Color(0xFFF3F4F6),
+              child: const Icon(Icons.broken_image, size: 20, color: Colors.grey),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
-            'Active mechanics have not registered any specialties. Switch to the Mechanic panel to register a service profile and post specialties!',
+            item.name,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              color: const Color(0xFF8B88A5),
-              fontSize: 12,
-              height: 1.4,
+              color: const Color(0xFF1F2937),
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              height: 1.2,
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  @override
-  Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-    final selectedType = appState.selectedVehicleType;
-    final models = selectedType != null ? appState.getModelsForType(selectedType) : <VehicleModel>[];
+// ── Data Models ───────────────────────────────────────────────────────────────
 
-    Color accentColor = const Color(0xFF00E676);
-    if (selectedType == VehicleType.car) {
-      accentColor = const Color(0xFF9C27B0);
-    } else if (selectedType == VehicleType.ev) {
-      accentColor = const Color(0xFF00B0FF);
-    }
+class _VehicleData {
+  final String bannerImage;
+  final String bannerTitle;
+  final String bannerSubtitle;
+  final List<String> bannerBadges;
+  final Color bannerColor;
+  final List<_SmallService> smallServices;
 
-    final customerName = appState.currentCustomerName ?? 'Valued Customer';
+  const _VehicleData({
+    required this.bannerImage,
+    required this.bannerTitle,
+    required this.bannerSubtitle,
+    required this.bannerBadges,
+    required this.bannerColor,
+    required this.smallServices,
+  });
+}
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 16.0, bottom: 100.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Welcome Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161426),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFF302B53).withOpacity(0.5),
-                  width: 1.2,
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: const Color(0xFF0D0B18),
-                    backgroundImage: appState.currentCustomerPhotoUrl != null
-                        ? NetworkImage(appState.currentCustomerPhotoUrl!)
-                        : null,
-                    child: appState.currentCustomerPhotoUrl == null
-                        ? const Icon(Icons.person, color: Color(0xFF00E676), size: 24)
-                        : null,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Welcome back,',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: const Color(0xFF8B88A5),
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          customerName,
-                          style: GoogleFonts.outfit(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
 
-            // Popular Services Section (Image 3 mockup style)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Popular Services',
-                  style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FindMechanicScreen()),
-                    );
-                  },
-                  child: Text(
-                    'View all',
-                    style: GoogleFonts.inter(color: const Color(0xFF00E676), fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Horizontal list of services
-            _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E676)))
-                : _popularServices.isEmpty
-                    ? _buildNoServicesPlaceholder()
-                    : SizedBox(
-                        height: 100,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _popularServices.length,
-                          itemBuilder: (context, index) {
-                            final service = _popularServices[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 16.0),
-                              child: GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => FindMechanicScreen(initialFilter: service['filter']),
-                                    ),
-                                  );
-                                },
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      width: 60,
-                                      height: 60,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF161426),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: const Color(0xFF302B53), width: 1.2),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.2),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          )
-                                        ],
-                                      ),
-                                      child: Icon(service['icon'], color: const Color(0xFF00E676), size: 24),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      service['name'],
-                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                    )
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-            const SizedBox(height: 16),
 
-            // Vehicle Selector Card (Preserved functional booking selector)
-            Container(
-              padding: EdgeInsets.zero,
-              decoration: const BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Quick Services',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select vehicle details to view tailored services chart',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: const Color(0xFF8B88A5),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Vehicle category cards row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildCategoryCard(
-                          title: 'Car',
-                          icon: Icons.directions_car_outlined,
-                          type: VehicleType.car,
-                          isSelected: selectedType == VehicleType.car,
-                          activeColor: const Color(0xFF9C27B0),
-                          appState: appState,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildCategoryCard(
-                          title: 'Bike',
-                          icon: Icons.two_wheeler_outlined,
-                          type: VehicleType.bike,
-                          isSelected: selectedType == VehicleType.bike,
-                          activeColor: const Color(0xFF00E676),
-                          appState: appState,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildCategoryCard(
-                          title: 'EV',
-                          icon: Icons.electric_car_outlined,
-                          type: VehicleType.ev,
-                          isSelected: selectedType == VehicleType.ev,
-                          activeColor: const Color(0xFF00B0FF),
-                          appState: appState,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Model dropdown
-                  if (selectedType != null) ...[
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D0B18),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _selectedModel != null ? accentColor : const Color(0xFF302B53),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          dropdownColor: const Color(0xFF161426),
-                          borderRadius: BorderRadius.circular(16),
-                          value: _selectedModel,
-                          hint: Row(
-                            children: [
-                              Icon(
-                                selectedType == VehicleType.car
-                                    ? Icons.directions_car_outlined
-                                    : selectedType == VehicleType.bike
-                                        ? Icons.two_wheeler_outlined
-                                        : Icons.electric_car_outlined,
-                                color: const Color(0xFF8B88A5),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Select Model',
-                                style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
-                              ),
-                            ],
-                          ),
-                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: accentColor),
-                          isExpanded: true,
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
-                          items: models.map((model) {
-                            return DropdownMenuItem<String>(
-                              value: model.name,
-                              child: Text(model.name),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              _selectedModel = val;
-                            });
-                            if (val != null) {
-                              appState.selectVehicleModel(val);
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Explore Button
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 300),
-                      opacity: _selectedModel != null ? 1.0 : 0.4,
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          gradient: LinearGradient(
-                            colors: _selectedModel != null
-                                ? [const Color(0xFF00E676), const Color(0xFF00B0FF)]
-                                : [const Color(0xFF302B53), const Color(0xFF302B53)],
-                          ),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: _selectedModel != null
-                                ? () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const ServiceSelectionScreen(),
-                                      ),
-                                    );
-                                  }
-                                : null,
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Explore Services Chart',
-                                    style: GoogleFonts.outfit(
-                                      color: _selectedModel != null ? const Color(0xFF0D0B18) : const Color(0xFF8B88A5),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 16,
-                                    color: _selectedModel != null ? const Color(0xFF0D0B18) : const Color(0xFF8B88A5),
-                                  )
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Recent Bookings Header with "View All" Button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Bookings',
-                  style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to history tab/screen
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const BookingHistoryScreen(),
-                      ),
-                    );
-                  },
-                  child: Row(
-                    children: [
-                      Text(
-                        'View All',
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF00E676),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        color: Color(0xFF00E676),
-                        size: 12,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Preview card of the most recent bookings (max 3)
-            if (appState.bookings.isNotEmpty) ...[
-              ...appState.bookings.reversed.take(3).map((booking) {
-                Color statusColor = const Color(0xFFFF9100);
-                if (booking.status == 'In Progress') {
-                  statusColor = const Color(0xFF00B0FF);
-                } else if (booking.status == 'Completed') {
-                  statusColor = const Color(0xFF00E676);
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF161426),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF302B53).withOpacity(0.8),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              booking.id,
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: statusColor.withOpacity(0.5), width: 1),
-                              ),
-                              child: Text(
-                                booking.status,
-                                style: GoogleFonts.inter(
-                                  color: statusColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Icon(
-                              booking.vehicleType == VehicleType.car
-                                  ? Icons.directions_car_outlined
-                                  : booking.vehicleType == VehicleType.bike
-                                      ? Icons.two_wheeler_outlined
-                                      : Icons.electric_car_outlined,
-                              color: const Color(0xFF8B88A5),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              booking.vehicleModel,
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '₹${booking.totalAmount.toStringAsFixed(0)}',
-                              style: GoogleFonts.outfit(
-                                color: const Color(0xFF00E676),
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ] else ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text(
-                    'No booking history',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF8B88A5),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryCard({
-    required String title,
-    required IconData icon,
-    required VehicleType type,
-    required bool isSelected,
-    required Color activeColor,
-    required AppState appState,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedModel = null;
-        });
-        appState.selectVehicleType(type);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        decoration: BoxDecoration(
-          color: isSelected ? activeColor.withOpacity(0.15) : const Color(0xFF0D0B18),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? activeColor : const Color(0xFF302B53),
-            width: isSelected ? 2.0 : 1.5,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected ? activeColor : const Color(0xFF8B88A5),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : const Color(0xFF8B88A5),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+class _SmallService {
+  final String name;
+  final String assetPath;
+  const _SmallService(this.name, this.assetPath);
 }
