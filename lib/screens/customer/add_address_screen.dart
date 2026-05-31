@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_state.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'dart:convert';
 
@@ -44,59 +45,92 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         throw 'Location permissions are permanently denied.';
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
+      // Try to get last known position first (instant)
+      Position? position = await Geolocator.getLastKnownPosition();
+      position ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
 
-      final client = HttpClient();
-      client.userAgent = 'MechTechApp/1.0';
-      final request = await client.getUrl(Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1'
-      ));
-      final response = await request.close();
-      
-      if (response.statusCode == 200) {
-        final content = await response.transform(utf8.decoder).join();
-        final Map<String, dynamic> data = jsonDecode(content);
-        final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
-
-        if (address != null) {
-          final flat = address['house_number'] ?? address['building'] ?? '';
-          final street = address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '';
-          final city = address['city'] ?? address['town'] ?? address['state_district'] ?? address['state'] ?? '';
-          final pincode = address['postcode'] ?? '';
-          final landmark = address['suburb'] ?? '';
+      // Try native geocoding first
+      bool geocodeSuccess = false;
+      try {
+        final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final flat = p.name?.isNotEmpty == true ? p.name! : '';
+          final street = p.thoroughfare?.isNotEmpty == true ? p.thoroughfare! : p.street ?? '';
+          final city = p.locality?.isNotEmpty == true ? p.locality! : p.administrativeArea ?? '';
+          final pincode = p.postalCode?.isNotEmpty == true ? p.postalCode! : '';
+          final landmark = p.subLocality?.isNotEmpty == true ? p.subLocality! : '';
 
           setState(() {
-            if (flat.toString().isNotEmpty) _flatController.text = flat.toString();
-            if (street.toString().isNotEmpty) _streetController.text = street.toString();
-            if (city.toString().isNotEmpty) _cityController.text = city.toString();
-            if (pincode.toString().isNotEmpty) _pincodeController.text = pincode.toString();
-            if (landmark.toString().isNotEmpty) _landmarkController.text = landmark.toString();
+            if (flat.isNotEmpty) _flatController.text = flat;
+            if (street.isNotEmpty) _streetController.text = street;
+            if (city.isNotEmpty) _cityController.text = city;
+            if (pincode.isNotEmpty) _pincodeController.text = pincode;
+            if (landmark.isNotEmpty) _landmarkController.text = landmark;
           });
+          geocodeSuccess = true;
+        }
+      } catch (nativeError) {
+        debugPrint("Native geocoding failed: $nativeError. Falling back to Nominatim API.");
+      }
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Address fetched and auto-filled!'),
-                backgroundColor: Color(0xFF00E676),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+      // Fallback to Nominatim HTTP API if native geocoding failed
+      if (!geocodeSuccess) {
+        final client = HttpClient();
+        client.userAgent = 'MechTechApp/1.0';
+        final request = await client.getUrl(Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1'
+        ));
+        final response = await request.close();
+        
+        if (response.statusCode == 200) {
+          final content = await response.transform(utf8.decoder).join();
+          final Map<String, dynamic> data = jsonDecode(content);
+          final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
+
+          if (address != null) {
+            final flat = address['house_number'] ?? address['building'] ?? '';
+            final street = address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '';
+            final city = address['city'] ?? address['town'] ?? address['state_district'] ?? address['state'] ?? '';
+            final pincode = address['postcode'] ?? '';
+            final landmark = address['suburb'] ?? '';
+
+            setState(() {
+              if (flat.toString().isNotEmpty) _flatController.text = flat.toString();
+              if (street.toString().isNotEmpty) _streetController.text = street.toString();
+              if (city.toString().isNotEmpty) _cityController.text = city.toString();
+              if (pincode.toString().isNotEmpty) _pincodeController.text = pincode.toString();
+              if (landmark.toString().isNotEmpty) _landmarkController.text = landmark.toString();
+            });
+            geocodeSuccess = true;
+          } else {
+            throw 'Could not parse address from Nominatim response.';
           }
         } else {
-          throw 'Could not parse address.';
+          throw 'Geocoding APIs returned error status.';
         }
-      } else {
-        throw 'Geocoding returned error status.';
+      }
+
+      if (geocodeSuccess && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Address fetched and auto-filled!'),
+            backgroundColor: Color(0xFF00E676),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
 
     } catch (e) {
       debugPrint("Error fetching location: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Unable to fetch address dynamically. Please type your address details manually.'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Colors.redAccent,
