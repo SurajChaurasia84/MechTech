@@ -5,10 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../services/app_state.dart';
+import '../../models/service_model.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/profile_tab.dart';
 import 'tabs/messages_tab.dart';
+import 'widgets/vehicle_selection_sheet.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -158,6 +160,60 @@ class _CustomerDashboardState extends State<CustomerDashboard>
             ],
           ),
           actions: [
+            if (_currentIndex == 0)
+              Consumer<AppState>(
+                builder: (context, appState, _) {
+                  final hasVehicle = appState.selectedVehicleModel != null;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () => showVehicleSelectionBottomSheet(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: hasVehicle ? const Color(0xFF00E676).withValues(alpha: 0.12) : const Color(0xFF302B53),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: hasVehicle ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                hasVehicle
+                                    ? (appState.selectedVehicleType == VehicleType.car
+                                        ? Icons.directions_car_rounded
+                                        : appState.selectedVehicleType == VehicleType.bike
+                                            ? Icons.motorcycle_rounded
+                                            : Icons.electric_car_rounded)
+                                    : Icons.add_rounded,
+                                size: 14,
+                                color: hasVehicle ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                              ),
+                              const SizedBox(width: 6),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 120),
+                                child: Text(
+                                  hasVehicle ? appState.selectedVehicleModel! : 'Add Vehicle',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.outfit(
+                                    color: hasVehicle ? Colors.white : const Color(0xFF8B88A5),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             if (_currentIndex == 3)
               IconButton(
                 icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
