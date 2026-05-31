@@ -24,15 +24,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
     setState(() => _isDeleting = true);
 
     try {
-      // Delete from subcollection
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('job_posts')
-          .doc(postId)
-          .delete();
-
-      // Delete from global root
+      // Delete from global job_posts collection
       await FirebaseFirestore.instance
           .collection('job_posts')
           .doc(postId)
@@ -151,9 +143,8 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
 
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(uid)
                 .collection('job_posts')
+                .where('mechanicId', isEqualTo: uid)
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
@@ -227,14 +218,18 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                   
                   final id = doc.id;
                   final title = data['title'] as String? ?? 'General Mechanic Post';
-                  final rate = data['rate'] as String? ?? '₹30/hr';
                   final exp = data['experience'] as String? ?? 'Experienced';
                   final location = data['location'] as String? ?? 'Bengaluru';
                   final desc = data['desc'] as String? ?? '';
                    final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
                   final tags = (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
                   final vehicleCategory = data['vehicleCategory'] as String? ?? 'car';
-                  
+                  final specializationRates = Map<String, int>.from(
+                    (data['specializationRates'] as Map<String, dynamic>? ?? {}).map(
+                      (k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0),
+                    ),
+                  );
+
                   // Construct JobPost object to pass for editing
                   final jobPost = JobPost(
                     id: id,
@@ -242,7 +237,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     mechanicName: appState.currentCustomerName ?? 'Mechanic',
                     mechanicPhotoUrl: appState.currentCustomerPhotoUrl ?? '',
                     title: title,
-                    rate: rate,
+                    rate: data['rate'] as String? ?? '',
                     experience: exp,
                     desc: desc,
                     location: location,
@@ -252,6 +247,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     longitude: (data['longitude'] as num?)?.toDouble(),
                     createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
                     vehicleCategory: vehicleCategory,
+                    specializationRates: specializationRates,
                   );
 
                   return Padding(
@@ -282,21 +278,23 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                                   ),
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF00E676).withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  rate,
-                                  style: GoogleFonts.outfit(
-                                    color: const Color(0xFF00E676),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                              // Service count badge
+                              if (specializationRates.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00E676).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '${specializationRates.length} service${specializationRates.length == 1 ? '' : 's'}',
+                                    style: GoogleFonts.outfit(
+                                      color: const Color(0xFF00E676),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 6),
