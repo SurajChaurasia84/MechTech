@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import '../screens/customer/edit_profile_screen.dart';
 import '../screens/customer/add_address_screen.dart';
-import 'dart:io';
-import 'dart:convert';
 
 class BookingPrepResult {
   final bool success;
@@ -60,32 +59,21 @@ class BookingUtils {
     if (position != null) {
       String resolvedAddress = '';
       try {
-        final client = HttpClient();
-        client.userAgent = 'MechTechApp/1.0';
-        final request = await client.getUrl(Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}&zoom=18&addressdetails=1'
-        ));
-        final response = await request.close();
-        
-        if (response.statusCode == 200) {
-          final content = await response.transform(utf8.decoder).join();
-          final Map<String, dynamic> data = jsonDecode(content);
-          final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
-
-          if (address != null) {
-            final flat = address['house_number'] ?? address['building'] ?? '';
-            final street = address['road'] ?? address['suburb'] ?? address['neighbourhood'] ?? '';
-            final city = address['city'] ?? address['town'] ?? address['state_district'] ?? address['state'] ?? '';
-            final pincode = address['postcode'] ?? '';
-            
-            final parts = [
-              if (flat.toString().isNotEmpty) flat.toString(),
-              if (street.toString().isNotEmpty) street.toString(),
-              if (city.toString().isNotEmpty) city.toString(),
-              if (pincode.toString().isNotEmpty) pincode.toString(),
-            ];
-            resolvedAddress = parts.join(', ');
-          }
+        final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final street = p.street ?? '';
+          final subLocality = p.subLocality ?? '';
+          final city = p.locality ?? p.administrativeArea ?? '';
+          final postalCode = p.postalCode ?? '';
+          
+          final parts = [
+            if (street.isNotEmpty && street != subLocality) street,
+            if (subLocality.isNotEmpty) subLocality,
+            if (city.isNotEmpty && city != subLocality) city,
+            if (postalCode.isNotEmpty) postalCode,
+          ];
+          resolvedAddress = parts.join(', ');
         }
       } catch (e) {
         debugPrint("Geocoding failed in BookingUtils: $e");
@@ -154,6 +142,12 @@ class BookingUtils {
         return null;
       }
 
+      // Check last known location first (very fast fallback)
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        return lastKnown;
+      }
+
       messenger.showSnackBar(
         SnackBar(
           content: Row(
@@ -176,10 +170,12 @@ class BookingUtils {
         ),
       );
 
-      // Perform position lookup with 5 second timeout
+      // Perform position lookup with 10 second timeout and medium accuracy
       return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
     } catch (e) {
       debugPrint("Error fetching location: $e");
