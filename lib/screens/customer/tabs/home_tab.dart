@@ -30,31 +30,31 @@ class _HomeTabState extends State<HomeTab> {
     'Oil Change': {
       'icon': Icons.opacity_rounded,
       'desc': 'Engine oil and filter change',
-      'price': '₹199/hr',
+      'price': '₹199',
       'image': 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=300'
     },
     'Tyre': {
       'icon': Icons.adjust_rounded,
       'desc': 'Rotation, balancing & alignment',
-      'price': '₹199/hr',
+      'price': '₹199',
       'image': 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?q=80&w=300'
     },
     'Electrical': {
       'icon': Icons.bolt_rounded,
       'desc': 'Battery and wiring diagnostics',
-      'price': '₹399/hr',
+      'price': '₹399',
       'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
     },
     'Engine': {
       'icon': Icons.handyman_rounded,
       'desc': 'Diagnostics and engine overhauls',
-      'price': '₹499/hr',
+      'price': '₹499',
       'image': 'https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?q=80&w=300'
     },
     'Brakes': {
       'icon': Icons.album_rounded,
       'desc': 'Pads, rotors, and fluid flush',
-      'price': '₹349/hr',
+      'price': '₹349',
       'image': 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=300'
     },
   };
