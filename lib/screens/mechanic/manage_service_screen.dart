@@ -28,7 +28,50 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   bool _isLoading = false;
   bool _isFetchingLocation = false;
   
-  final List<String> _availableCategories = ['Oil Change', 'Engine', 'Brakes', 'Tyre', 'Electrical'];
+  String _selectedCategory = 'car';
+  
+  final Map<String, List<String>> _categorySpecializations = const {
+    'car': [
+      'Periodic Services',
+      'Spa & Detailing',
+      'Tyres & Wheel',
+      'Batteries',
+      'Brake & Suspension',
+      'Clutch & Body',
+      'Lights & Mirror',
+      'Denting & Paint',
+      'Custom Repair',
+      'Car Inspection',
+      'Insurance',
+      'Electrical',
+    ],
+    'bike': [
+      'Periodic Services',
+      'Spa & Detailing',
+      'Tyres & Wheel Care',
+      'Batteries',
+      'Brake & Suspension',
+      'Clutch & Trans.',
+      'Lights & Mirror',
+      'Denting & Paint',
+      'Custom Repair',
+      'Accessories',
+      'Electrical',
+      'Body Parts',
+    ],
+    'ev': [
+      'Periodic Services',
+      'Tyres & Wheel Care',
+      'Battery Diagnostics',
+      'Brake Check',
+      'Motor Service',
+      'Lights & Wiring',
+      'Body Panels',
+      'Charging Fix',
+      'Accessories',
+    ],
+  };
+
   final List<String> _selectedCategories = [];
 
 
@@ -67,10 +110,9 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       }
       _locationController.text = rawLocation;
 
+      _selectedCategory = post.vehicleCategory;
       _selectedCategories.clear();
       _selectedCategories.addAll(post.categories);
-
-
 
       _latitude = post.latitude;
       _longitude = post.longitude;
@@ -82,6 +124,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     _expController.clear();
     _bioController.clear();
     _locationController.clear();
+    _selectedCategory = 'car';
     _selectedCategories.clear();
     _latitude = null;
     _longitude = null;
@@ -275,6 +318,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'latitude': _latitude,
         'longitude': _longitude,
         'createdAt': widget.existingPost?.createdAt ?? FieldValue.serverTimestamp(),
+        'vehicleCategory': _selectedCategory,
       };
 
       // 1. Save to user's subcollection
@@ -505,6 +549,27 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Vehicle Category
+                    Text(
+                      'Vehicle Category',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildCategoryChip('car', 'Car', Icons.directions_car_rounded),
+                        const SizedBox(width: 10),
+                        _buildCategoryChip('bike', 'Bike', Icons.motorcycle_rounded),
+                        const SizedBox(width: 10),
+                        _buildCategoryChip('ev', 'EV', Icons.electric_car_rounded),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
                     // Specialty Categories
                     Text(
                       'Specializations (Select all that apply)',
@@ -518,7 +583,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: _availableCategories.map((cat) {
+                      children: (_categorySpecializations[_selectedCategory] ?? []).map((cat) {
                         final isSelected = _selectedCategories.contains(cat);
                         return FilterChip(
                           label: Text(cat),
@@ -560,7 +625,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF00E676).withOpacity(0.2),
+                            color: const Color(0xFF00E676).withValues(alpha: 0.2),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )
@@ -588,6 +653,50 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildCategoryChip(String value, String label, IconData icon) {
+    final isSelected = _selectedCategory == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedCategory = value;
+            _selectedCategories.clear();
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF08693F).withValues(alpha: 0.15) : const Color(0xFF161426),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF00E676) : const Color(0xFF302B53),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
+                size: 24,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: isSelected ? Colors.white : const Color(0xFF8B88A5),
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
