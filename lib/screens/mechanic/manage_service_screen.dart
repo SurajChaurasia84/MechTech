@@ -220,7 +220,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final rateStr = '₹${_rateController.text.trim()}/hr';
+      final rateStr = '₹${_rateController.text.trim()}';
       final expStr = '${_expController.text.trim()} years of experience';
       final bioStr = '"${_bioController.text.trim()}"';
       final locStr = _locationController.text.trim().isNotEmpty
@@ -339,8 +339,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                         Expanded(
                           child: _buildTextField(
                             controller: _rateController,
-                            label: 'Hourly Rate (₹)',
-                            hint: 'e.g. 40',
+                            label: 'Service Charge (₹)',
+                            hint: 'e.g. 500',
                             keyboardType: TextInputType.number,
                             validator: (val) {
                               if (val == null || val.trim().isEmpty) return 'Required';
