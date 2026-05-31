@@ -36,6 +36,14 @@ class AppState extends ChangeNotifier {
             _currentCustomerName = data?['name'] as String?;
             _currentCustomerEmail = data?['email'] as String?;
             _userRole = data?['role'] as String?;
+
+            final vTypeStr = data?['selectedVehicleType'] as String?;
+            if (vTypeStr != null) {
+              if (vTypeStr == 'car') _selectedVehicleType = VehicleType.car;
+              if (vTypeStr == 'bike') _selectedVehicleType = VehicleType.bike;
+              if (vTypeStr == 'ev') _selectedVehicleType = VehicleType.ev;
+            }
+            _selectedVehicleModel = data?['selectedVehicleModel'] as String?;
           }
           _userRole ??= 'customer';
         } catch (e) {
@@ -674,6 +682,24 @@ class AppState extends ChangeNotifier {
   void clearServiceSelection() {
     _selectedServices.clear();
     notifyListeners();
+  }
+
+  Future<void> saveSelectedVehicle(VehicleType type, String model) async {
+    _selectedVehicleType = type;
+    _selectedVehicleModel = model;
+    notifyListeners();
+
+    final currentUser = _user;
+    if (currentUser != null) {
+      try {
+        await _firestore.collection('users').doc(currentUser.uid).set({
+          'selectedVehicleType': type.name,
+          'selectedVehicleModel': model,
+        }, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint("Error saving selected vehicle to Firestore: $e");
+      }
+    }
   }
 
   Future<ServiceBooking?> submitBooking({
