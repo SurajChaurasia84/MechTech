@@ -62,6 +62,7 @@ class JobPost {
   final double? latitude;
   final double? longitude;
   final DateTime createdAt;
+  final String vehicleCategory;
 
   JobPost({
     required this.id,
@@ -78,6 +79,7 @@ class JobPost {
     this.latitude,
     this.longitude,
     required this.createdAt,
+    required this.vehicleCategory,
   });
 }
 
