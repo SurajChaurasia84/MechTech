@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import 'tabs/home_tab.dart';
@@ -19,6 +21,56 @@ class CustomerDashboard extends StatefulWidget {
 
 class _CustomerDashboardState extends State<CustomerDashboard> {
   int _currentIndex = 0;
+
+  // Location state
+  static String? _cachedLocation;   // persist across rebuilds
+  String _locationLabel = 'Fetching location...';
+  bool _locationFetching = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_cachedLocation != null) {
+      _locationLabel = _cachedLocation!;
+      _locationFetching = false;
+    } else {
+      _fetchLocation();
+    }
+  }
+
+  Future<void> _fetchLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        if (mounted) setState(() { _locationLabel = 'Location unavailable'; _locationFetching = false; });
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+      );
+
+      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final locality = p.subLocality?.isNotEmpty == true ? p.subLocality! : p.locality ?? '';
+        final city = p.locality ?? p.administrativeArea ?? '';
+        final label = locality.isNotEmpty && locality != city
+            ? '$locality, $city'
+            : city.isNotEmpty ? city : 'Location found';
+        _cachedLocation = label;
+        if (mounted) setState(() { _locationLabel = label; _locationFetching = false; });
+      } else {
+        if (mounted) setState(() { _locationLabel = 'Location unavailable'; _locationFetching = false; });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _locationLabel = 'Location unavailable'; _locationFetching = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +110,59 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 ),
                 const SizedBox(width: 10),
               ],
-              Text(
-                _getAppBarTitle(),
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
-              ),
+              if (_currentIndex == 0)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _getAppBarTitle(),
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_locationFetching)
+                          const SizedBox(
+                            width: 9,
+                            height: 9,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Color(0xFF00E676),
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.location_on_rounded,
+                            size: 11,
+                            color: Color(0xFF00E676),
+                          ),
+                        const SizedBox(width: 3),
+                        Text(
+                          _locationLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: const Color(0xFF8B88A5),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  _getAppBarTitle(),
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    color: Colors.white,
+                  ),
+                ),
             ],
           ),
           automaticallyImplyLeading: false,
