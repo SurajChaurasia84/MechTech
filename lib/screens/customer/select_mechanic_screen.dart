@@ -455,13 +455,35 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        mech['name'],
-                                        style: GoogleFonts.outfit(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              mech['name'],
+                                              style: GoogleFonts.outfit(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF00E676).withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              mech['rate'],
+                                              style: GoogleFonts.outfit(
+                                                color: const Color(0xFF00E676),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
@@ -472,17 +494,38 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Row(
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 4,
                                         children: [
-                                          const Icon(Icons.location_on_outlined, color: Color(0xFF8B88A5), size: 13),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            distanceStr,
-                                            style: GoogleFonts.inter(
-                                              color: const Color(0xFF8B88A5),
-                                              fontSize: 11,
-                                            ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.work_outline_rounded, color: Color(0xFF8B88A5), size: 13),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                mech['experience'],
+                                                style: GoogleFonts.inter(
+                                                  color: const Color(0xFF8B88A5),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.location_on_outlined, color: Color(0xFF8B88A5), size: 13),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                distanceStr,
+                                                style: GoogleFonts.inter(
+                                                  color: const Color(0xFF8B88A5),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
