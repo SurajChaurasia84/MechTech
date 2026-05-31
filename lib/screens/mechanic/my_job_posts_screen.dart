@@ -231,8 +231,9 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                   final exp = data['experience'] as String? ?? 'Experienced';
                   final location = data['location'] as String? ?? 'Bengaluru';
                   final desc = data['desc'] as String? ?? '';
-                  final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+                   final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
                   final tags = (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [];
+                  final vehicleCategory = data['vehicleCategory'] as String? ?? 'car';
                   
                   // Construct JobPost object to pass for editing
                   final jobPost = JobPost(
@@ -250,6 +251,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     latitude: (data['latitude'] as num?)?.toDouble(),
                     longitude: (data['longitude'] as num?)?.toDouble(),
                     createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                    vehicleCategory: vehicleCategory,
                   );
 
                   return Padding(
