@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../services/app_state.dart';
+import '../../../models/service_model.dart';
 import '../find_mechanic_screen.dart';
+import '../select_mechanic_screen.dart';
+import '../widgets/vehicle_selection_sheet.dart';
 
 class HomeTab extends StatelessWidget {
   final String vehicleType; // 'car' | 'bike' | 'ev'
@@ -116,7 +119,13 @@ class HomeTab extends StatelessWidget {
                     mainAxisSpacing: 1,
                     childAspectRatio: vehicleType == 'ev' ? 1.05 : 0.9,
                   ),
-                  itemBuilder: (ctx, i) => _SmallServiceCard(item: vehicle.smallServices[i]),
+                  itemBuilder: (ctx, i) {
+                    final item = vehicle.smallServices[i];
+                    return GestureDetector(
+                      onTap: () => _handleServiceTap(ctx, item.name),
+                      child: _SmallServiceCard(item: item),
+                    );
+                  },
                 ),
               ),
             ),
@@ -212,6 +221,100 @@ class HomeTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _handleServiceTap(BuildContext context, String specialtyName) async {
+    final appState = context.read<AppState>();
+    
+    VehicleType typeEnum = VehicleType.car;
+    if (vehicleType == 'bike') {
+      typeEnum = VehicleType.bike;
+    }
+    if (vehicleType == 'ev') {
+      typeEnum = VehicleType.ev;
+    }
+
+    Future<void> proceedToBookingFlow() async {
+      String matchedId = 'car_periodic';
+      final s = specialtyName.toLowerCase();
+      if (vehicleType == 'car') {
+        if (s.contains('periodic')) {
+          matchedId = 'car_periodic';
+        } else if (s.contains('battery') || s.contains('electrical')) {
+          matchedId = 'car_battery';
+        } else if (s.contains('brake')) {
+          matchedId = 'car_brake';
+        } else if (s.contains('tyre') || s.contains('wheel')) {
+          matchedId = 'car_alignment';
+        } else if (s.contains('electrical') || s.contains('ac')) {
+          matchedId = 'car_ac';
+        } else {
+          matchedId = 'car_periodic';
+        }
+      } else if (vehicleType == 'bike') {
+        if (s.contains('periodic') || s.contains('oil') || s.contains('general')) {
+          matchedId = 'bike_general';
+        } else if (s.contains('brake')) {
+          matchedId = 'bike_brake';
+        } else if (s.contains('clutch') || s.contains('engine')) {
+          matchedId = 'bike_engine';
+        } else if (s.contains('tyre') || s.contains('chain')) {
+          matchedId = 'bike_chain';
+        } else {
+          matchedId = 'bike_general';
+        }
+      } else {
+        if (s.contains('battery')) {
+          matchedId = 'ev_battery';
+        } else if (s.contains('wiring') || s.contains('electrical') || s.contains('light')) {
+          matchedId = 'ev_wiring';
+        } else if (s.contains('brake')) {
+          matchedId = 'ev_braking';
+        } else if (s.contains('motor') || s.contains('coolant')) {
+          matchedId = 'ev_coolant';
+        } else if (s.contains('transmission') || s.contains('gearbox')) {
+          matchedId = 'ev_transmission';
+        } else {
+          matchedId = 'ev_battery';
+        }
+      }
+
+      final catalog = appState.getServicesForType(typeEnum);
+      final matchedItem = catalog.firstWhere((item) => item.id == matchedId, orElse: () => catalog.first);
+      
+      appState.clearServiceSelection();
+      appState.toggleServiceSelection(matchedItem);
+
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: appState,
+          child: SelectMechanicScreen(
+            specialtyFilter: specialtyName,
+            vehicleTypeFilter: vehicleType,
+          ),
+        ),
+      ));
+    }
+
+    if (appState.selectedVehicleType != typeEnum || appState.selectedVehicleModel == null) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF161426),
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (sheetCtx) {
+          return VehicleSelectionSheet(initialType: typeEnum);
+        },
+      ).then((selectedModel) {
+        if (selectedModel != null && context.mounted) {
+          proceedToBookingFlow();
+        }
+      });
+    } else {
+      await proceedToBookingFlow();
+    }
   }
 }
 
