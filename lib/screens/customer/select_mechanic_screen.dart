@@ -7,7 +7,14 @@ import '../../services/app_state.dart';
 import 'booking_summary_screen.dart';
 
 class SelectMechanicScreen extends StatefulWidget {
-  const SelectMechanicScreen({super.key});
+  final String? specialtyFilter;
+  final String? vehicleTypeFilter;
+
+  const SelectMechanicScreen({
+    super.key,
+    this.specialtyFilter,
+    this.vehicleTypeFilter,
+  });
 
   @override
   State<SelectMechanicScreen> createState() => _SelectMechanicScreenState();
@@ -90,6 +97,23 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
       final List<Map<String, dynamic>> loadedMechs = [];
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
+
+        // Filter by vehicle type if provided
+        if (widget.vehicleTypeFilter != null) {
+          final postVehicleCategory = data['vehicleCategory'] as String? ?? 'car';
+          if (postVehicleCategory.toLowerCase() != widget.vehicleTypeFilter!.toLowerCase()) {
+            continue;
+          }
+        }
+
+        // Filter by specialty if provided
+        final categories = (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+        if (widget.specialtyFilter != null) {
+          if (!categories.contains(widget.specialtyFilter)) {
+            continue;
+          }
+        }
+
         loadedMechs.add({
           'id': doc.id,
           'mechanicId': data['mechanicId'] as String?,
@@ -101,7 +125,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           'location': data['location'] as String? ?? 'Bengaluru',
           'desc': data['desc'] as String? ?? '"Expert vehicle mechanic."',
           'photo': data['mechanicPhotoUrl'] as String? ?? 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?q=80&w=150',
-          'categories': (data['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? ['All'],
+          'categories': categories,
           'tags': (data['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ?? [],
           'latitude': (data['latitude'] as num?)?.toDouble(),
           'longitude': (data['longitude'] as num?)?.toDouble(),
@@ -351,7 +375,9 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
                 },
               )
             : Text(
-                'Select Mechanic',
+                widget.specialtyFilter != null
+                    ? '${widget.specialtyFilter}'
+                    : 'Select Mechanic',
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
               ),
         actions: [
