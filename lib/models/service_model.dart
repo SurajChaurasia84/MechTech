@@ -63,6 +63,7 @@ class JobPost {
   final double? longitude;
   final DateTime createdAt;
   final String vehicleCategory;
+  final Map<String, int> specializationRates;
 
   JobPost({
     required this.id,
@@ -80,6 +81,7 @@ class JobPost {
     this.longitude,
     required this.createdAt,
     required this.vehicleCategory,
+    this.specializationRates = const {},
   });
 }
 
