@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/app_state.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../../models/service_model.dart';
@@ -113,67 +114,97 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         throw 'Location permissions are permanently denied.';
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 4),
+      Position? position = await Geolocator.getLastKnownPosition();
+      position ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
 
       lat = position.latitude;
       lon = position.longitude;
 
-      // Reverse geocoding via Nominatim
+      // Try native geocoding first
+      bool geocodeSuccess = false;
       try {
-        final client = HttpClient();
-        client.userAgent = 'MechTechApp/1.0';
-        final request = await client.getUrl(Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1'
-        ));
-        final response = await request.close();
-        
-        if (response.statusCode == 200) {
-          final content = await response.transform(utf8.decoder).join();
-          final Map<String, dynamic> data = jsonDecode(content);
-          final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
-
-          if (address != null) {
-            final road = address['road'] ?? '';
-            final neighbourhood = address['neighbourhood'] ?? '';
-            final suburb = address['suburb'] ?? '';
-            final cityDistrict = address['city_district'] ?? '';
-            final village = address['village'] ?? '';
-            final town = address['town'] ?? '';
-            final city = address['city'] ?? address['state'] ?? '';
-
-            final List<String> areaParts = [];
-            
-            // 1. Add specific road/street if available
-            if (road.toString().isNotEmpty) {
-              areaParts.add(road.toString());
-            }
-            
-            // 2. Add suburb/neighbourhood/district/village
-            final localArea = suburb.toString().isNotEmpty 
-                ? suburb.toString() 
-                : (neighbourhood.toString().isNotEmpty 
-                    ? neighbourhood.toString() 
-                    : (cityDistrict.toString().isNotEmpty 
-                        ? cityDistrict.toString() 
-                        : village.toString()));
-                        
-            if (localArea.isNotEmpty && !areaParts.contains(localArea)) {
-              areaParts.add(localArea);
-            }
-            
-            // 3. Add town or city
-            final cityStr = city.toString().isNotEmpty ? city.toString() : town.toString();
-            if (cityStr.isNotEmpty && !areaParts.contains(cityStr)) {
-              areaParts.add(cityStr);
-            }
-            
-            resolvedAddress = areaParts.join(', ');
+        final placemarks = await placemarkFromCoordinates(lat, lon);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final List<String> areaParts = [];
+          
+          if (p.thoroughfare != null && p.thoroughfare!.isNotEmpty) {
+            areaParts.add(p.thoroughfare!);
+          } else if (p.street != null && p.street!.isNotEmpty) {
+            areaParts.add(p.street!);
           }
+
+          final localArea = p.subLocality ?? '';
+          if (localArea.isNotEmpty && !areaParts.contains(localArea)) {
+            areaParts.add(localArea);
+          }
+
+          final city = p.locality ?? p.administrativeArea ?? '';
+          if (city.isNotEmpty && !areaParts.contains(city)) {
+            areaParts.add(city);
+          }
+
+          resolvedAddress = areaParts.join(', ');
+          geocodeSuccess = true;
         }
-      } catch (_) {}
+      } catch (nativeError) {
+        debugPrint("Native geocoding failed: $nativeError. Falling back to Nominatim API.");
+      }
+
+      // Fallback to Nominatim HTTP API if native geocoding failed
+      if (!geocodeSuccess) {
+        try {
+          final client = HttpClient();
+          client.userAgent = 'MechTechApp/1.0';
+          final request = await client.getUrl(Uri.parse(
+            'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1'
+          ));
+          final response = await request.close();
+          
+          if (response.statusCode == 200) {
+            final content = await response.transform(utf8.decoder).join();
+            final Map<String, dynamic> data = jsonDecode(content);
+            final Map<String, dynamic>? address = data['address'] as Map<String, dynamic>?;
+
+            if (address != null) {
+              final road = address['road'] ?? '';
+              final neighbourhood = address['neighbourhood'] ?? '';
+              final suburb = address['suburb'] ?? '';
+              final cityDistrict = address['city_district'] ?? '';
+              final village = address['village'] ?? '';
+              final town = address['town'] ?? '';
+              final city = address['city'] ?? address['state'] ?? '';
+
+              final List<String> areaParts = [];
+              if (road.toString().isNotEmpty) areaParts.add(road.toString());
+              
+              final localArea = suburb.toString().isNotEmpty 
+                  ? suburb.toString() 
+                  : (neighbourhood.toString().isNotEmpty 
+                      ? neighbourhood.toString() 
+                      : (cityDistrict.toString().isNotEmpty 
+                          ? cityDistrict.toString() 
+                          : village.toString()));
+              if (localArea.isNotEmpty && !areaParts.contains(localArea)) {
+                areaParts.add(localArea);
+              }
+              
+              final cityStr = city.toString().isNotEmpty ? city.toString() : town.toString();
+              if (cityStr.isNotEmpty && !areaParts.contains(cityStr)) {
+                areaParts.add(cityStr);
+              }
+              
+              resolvedAddress = areaParts.join(', ');
+              geocodeSuccess = true;
+            }
+          }
+        } catch (_) {}
+      }
 
       if (resolvedAddress.isEmpty) {
         resolvedAddress = 'Bengaluru (GPS Verified)';
