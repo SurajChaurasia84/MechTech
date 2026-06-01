@@ -21,6 +21,33 @@ class ServiceSelectionScreen extends StatelessWidget {
     }
 
     final services = appState.getServicesForType(vehicleType);
+    if (services.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0D0B18),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF161426),
+          elevation: 0,
+          title: Text(
+            'Select Services',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Text(
+              'No services are currently available for $vehicleModel.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 14),
+            ),
+          ),
+        ),
+      );
+    }
     final selectedServices = appState.selectedServices;
     final totalAmount = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
 
@@ -137,43 +164,13 @@ class ServiceSelectionScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF0D0B18),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.access_time_rounded,
-                                          size: 13,
-                                          color: Color(0xFF8B88A5),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          service.duration,
-                                          style: GoogleFonts.inter(
-                                            color: const Color(0xFF8B88A5),
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '₹${service.price.toStringAsFixed(0)}',
-                                    style: GoogleFonts.outfit(
-                                      color: accentColor,
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                '₹${service.price.toStringAsFixed(0)}',
+                                style: GoogleFonts.outfit(
+                                  color: accentColor,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
