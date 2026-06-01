@@ -429,18 +429,19 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
     final selected = appState.selectedServices;
     if (selected.isNotEmpty) {
       double totalRate = 0;
-      bool foundAny = false;
+      bool allAvailable = true;
       for (final service in selected) {
         final rate = specRates[service.category] ?? specRates[service.name];
         if (rate != null && rate > 0) {
           totalRate += rate;
-          foundAny = true;
         } else {
-          totalRate += service.price;
+          allAvailable = false;
         }
       }
-      if (foundAny) {
+      if (allAvailable) {
         return '₹${totalRate.toStringAsFixed(0)}';
+      } else {
+        return 'Not Available';
       }
     }
     
@@ -456,7 +457,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
       }
     }
     
-    return '₹30/hr';
+    return 'Not Available';
   }
 
   void _handleBookNow(Map<String, dynamic> mechanic) {
@@ -477,8 +478,24 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
     
     // Check if the customer already has vehicle type and services selected
     if (appState.selectedVehicleType != null && appState.selectedServices.isNotEmpty) {
-      // Apply mechanic rates to selected services in AppState
+      // Check if the mechanic offers all selected services
       final specRates = Map<String, int>.from(mechanic['specializationRates'] ?? {});
+      final selected = appState.selectedServices;
+      for (final service in selected) {
+        final rate = specRates[service.category] ?? specRates[service.name];
+        if (rate == null || rate <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("${mechanic['name']} does not offer ${service.name} for this vehicle model."),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Apply mechanic rates to selected services in AppState
       appState.applyMechanicRates(specRates);
 
       // Direct booking summary
@@ -1183,8 +1200,7 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
     }
     _updateMechanicServices(appState);
   }
-
-  void _updateMechanicServices(AppState appState) {
+  Future<void> _updateMechanicServices(AppState appState) async {
     final bool typeMatches = _selectedType.name.toLowerCase() == (widget.mechanic['vehicleCategory'] as String? ?? 'car').toLowerCase();
     
     final mechanicCategories = typeMatches
@@ -1195,35 +1211,39 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
         : <String>[];
         
     final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+
+    if (_selectedModel != null) {
+      appState.selectVehicleType(_selectedType);
+      appState.selectVehicleModel(_selectedModel!);
+      await appState.fetchActiveServices();
+    }
+    
     final catalogServices = appState.getServicesForType(_selectedType);
 
-    _mechanicServices = mechanicCategories.map((catName) {
-      // Find matching catalog service to reuse description and duration
-      final matchingCatalog = catalogServices.firstWhere(
-        (s) => s.category.toLowerCase() == catName.toLowerCase() || s.name.toLowerCase() == catName.toLowerCase(),
-        orElse: () => ServiceItem(
-          id: 'dyn_${catName.hashCode}',
-          name: catName,
-          price: (specRates[catName] ?? 0).toDouble(),
-          description: 'Professional $catName services offered by ${widget.mechanic['name']}.',
-          duration: '1 hr',
-          vehicleType: _selectedType,
-          category: catName,
-        ),
-      );
+    final updatedServices = mechanicCategories.map((catName) {
+      ServiceItem? matchingCatalog;
+      try {
+        matchingCatalog = catalogServices.firstWhere(
+          (s) => s.category.toLowerCase() == catName.toLowerCase() || s.name.toLowerCase() == catName.toLowerCase(),
+        );
+      } catch (_) {}
 
-      // Now create a custom ServiceItem for this mechanic with their custom rate
-      final rate = specRates[catName] ?? (specRates[matchingCatalog.name] ?? matchingCatalog.price.toInt());
+      final rate = specRates[catName] ?? 0;
       return ServiceItem(
-        id: matchingCatalog.id.startsWith('dyn_') ? 'dyn_${catName.hashCode}' : matchingCatalog.id,
-        name: matchingCatalog.id.startsWith('dyn_') ? catName : matchingCatalog.name,
+        id: matchingCatalog?.id ?? 'dyn_${catName.hashCode}',
+        name: matchingCatalog?.name ?? catName,
         price: rate.toDouble(),
-        description: matchingCatalog.description,
-        duration: matchingCatalog.duration,
+        description: matchingCatalog?.description ?? 'Professional $catName services offered by ${widget.mechanic['name']}.',
         vehicleType: _selectedType,
-        category: matchingCatalog.category,
+        category: matchingCatalog?.category ?? catName,
       );
     }).toList();
+
+    if (mounted) {
+      setState(() {
+        _mechanicServices = updatedServices;
+      });
+    }
   }
 
   @override
@@ -1365,9 +1385,13 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          setState(() {
-                            _selectedModel = val;
-                          });
+                          if (val != null) {
+                            setState(() {
+                              _selectedModel = val;
+                              _selectedServices.clear();
+                            });
+                            _updateMechanicServices(appState);
+                          }
                         },
                       ),
                     ),
@@ -1391,21 +1415,36 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                   )
                 else
                   ..._mechanicServices.map((s) {
+                    final isAvailable = s.price > 0;
                     final isSelected = _selectedServices.contains(s);
                     return CheckboxListTile(
-                      title: Text(s.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14)),
-                      subtitle: Text('₹${s.price.toStringAsFixed(0)}', style: GoogleFonts.inter(color: const Color(0xFF00E676))),
-                      value: isSelected,
+                      title: Text(
+                        s.name, 
+                        style: GoogleFonts.inter(
+                          color: isAvailable ? Colors.white : Colors.white.withOpacity(0.4), 
+                          fontSize: 14
+                        )
+                      ),
+                      subtitle: Text(
+                        isAvailable ? '₹${s.price.toStringAsFixed(0)}' : 'Not Available', 
+                        style: GoogleFonts.inter(
+                          color: isAvailable ? const Color(0xFF00E676) : Colors.redAccent,
+                          fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
+                        )
+                      ),
+                      value: isAvailable ? isSelected : false,
                       activeColor: const Color(0xFF00E676),
-                      onChanged: (checked) {
-                        setState(() {
-                          if (checked == true) {
-                            _selectedServices.add(s);
-                          } else {
-                            _selectedServices.remove(s);
-                          }
-                        });
-                      },
+                      onChanged: isAvailable 
+                          ? (checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  _selectedServices.add(s);
+                                } else {
+                                  _selectedServices.remove(s);
+                                }
+                              });
+                            }
+                          : null,
                     );
                   }),
               ],
