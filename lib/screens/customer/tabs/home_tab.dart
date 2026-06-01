@@ -235,52 +235,30 @@ class HomeTab extends StatelessWidget {
     }
 
     Future<void> proceedToBookingFlow() async {
-      String matchedId = 'car_periodic';
-      final s = specialtyName.toLowerCase();
-      if (vehicleType == 'car') {
-        if (s.contains('periodic')) {
-          matchedId = 'car_periodic';
-        } else if (s.contains('battery') || s.contains('electrical')) {
-          matchedId = 'car_battery';
-        } else if (s.contains('brake')) {
-          matchedId = 'car_brake';
-        } else if (s.contains('tyre') || s.contains('wheel')) {
-          matchedId = 'car_alignment';
-        } else if (s.contains('electrical') || s.contains('ac')) {
-          matchedId = 'car_ac';
-        } else {
-          matchedId = 'car_periodic';
-        }
-      } else if (vehicleType == 'bike') {
-        if (s.contains('periodic') || s.contains('oil') || s.contains('general')) {
-          matchedId = 'bike_general';
-        } else if (s.contains('brake')) {
-          matchedId = 'bike_brake';
-        } else if (s.contains('clutch') || s.contains('engine')) {
-          matchedId = 'bike_engine';
-        } else if (s.contains('tyre') || s.contains('chain')) {
-          matchedId = 'bike_chain';
-        } else {
-          matchedId = 'bike_general';
-        }
-      } else {
-        if (s.contains('battery')) {
-          matchedId = 'ev_battery';
-        } else if (s.contains('wiring') || s.contains('electrical') || s.contains('light')) {
-          matchedId = 'ev_wiring';
-        } else if (s.contains('brake')) {
-          matchedId = 'ev_braking';
-        } else if (s.contains('motor') || s.contains('coolant')) {
-          matchedId = 'ev_coolant';
-        } else if (s.contains('transmission') || s.contains('gearbox')) {
-          matchedId = 'ev_transmission';
-        } else {
-          matchedId = 'ev_battery';
-        }
-      }
-
       final catalog = appState.getServicesForType(typeEnum);
-      final matchedItem = catalog.firstWhere((item) => item.id == matchedId, orElse: () => catalog.first);
+      ServiceItem? matchedItem;
+      try {
+        matchedItem = catalog.firstWhere(
+          (item) => item.category.toLowerCase() == specialtyName.toLowerCase() ||
+                    item.name.toLowerCase().contains(specialtyName.toLowerCase()) ||
+                    specialtyName.toLowerCase().contains(item.category.toLowerCase()),
+        );
+      } catch (_) {
+        matchedItem = null;
+      }
+      
+      if (matchedItem == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$specialtyName is currently not available for your selected vehicle model.'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
       
       appState.clearServiceSelection();
       appState.toggleServiceSelection(matchedItem);
