@@ -116,6 +116,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     try {
       await batch.commit();
       _scrollToBottom();
+      
+      // Trigger push notification to message recipient
+      appState.sendNotification(
+        recipientUid: widget.recipientId,
+        title: 'New Message from $currentUserName',
+        body: filteredText,
+      );
     } catch (e) {
       debugPrint("Error sending message: $e");
     }
