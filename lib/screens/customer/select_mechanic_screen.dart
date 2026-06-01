@@ -225,18 +225,19 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
     final selected = appState.selectedServices;
     if (selected.isNotEmpty) {
       double totalRate = 0;
-      bool foundAny = false;
+      bool allAvailable = true;
       for (final service in selected) {
         final rate = specRates[service.category] ?? specRates[service.name];
         if (rate != null && rate > 0) {
           totalRate += rate;
-          foundAny = true;
         } else {
-          totalRate += service.price;
+          allAvailable = false;
         }
       }
-      if (foundAny) {
+      if (allAvailable) {
         return '₹${totalRate.toStringAsFixed(0)}';
+      } else {
+        return 'Not Available';
       }
     }
     
@@ -252,7 +253,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
       }
     }
     
-    return '₹30/hr';
+    return 'Not Available';
   }
 
   void _handleBookNow(Map<String, dynamic> mechanic) {
@@ -271,8 +272,24 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
       return;
     }
 
-    // Apply mechanic rates to selected services in AppState
+    // Check if the mechanic offers all selected services
     final specRates = Map<String, int>.from(mechanic['specializationRates'] ?? {});
+    final selected = appState.selectedServices;
+    for (final service in selected) {
+      final rate = specRates[service.category] ?? specRates[service.name];
+      if (rate == null || rate <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${mechanic['name']} does not offer ${service.name} for this vehicle model."),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Apply mechanic rates to selected services in AppState
     appState.applyMechanicRates(specRates);
 
     Navigator.of(context).push(
