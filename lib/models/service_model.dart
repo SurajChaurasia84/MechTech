@@ -32,7 +32,6 @@ class ServiceItem {
   final String name;
   final double price;
   final String description;
-  final String duration;
   final VehicleType vehicleType;
   final String category;
 
@@ -41,7 +40,6 @@ class ServiceItem {
     required this.name,
     required this.price,
     required this.description,
-    required this.duration,
     required this.vehicleType,
     required this.category,
   });
