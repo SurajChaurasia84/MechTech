@@ -47,6 +47,38 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _handleGuestSignIn() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final success = await context.read<AppState>().signInAnonymously(
+      selectedRole: _selectedRole,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Guest Sign-in failed. Please try again.',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -343,7 +375,48 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
-                          const SizedBox(height: 12),
+                            const SizedBox(height: 16),
+                            // Outlined Guest Sign In Button
+                            Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16.0),
+                                border: Border.all(
+                                  color: const Color(0xFF302B53),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16.0),
+                                  onTap: _handleGuestSignIn,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.person_outline_rounded,
+                                          color: Color(0xFF00E676),
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Text(
+                                          'Continue as Guest',
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                           Center(
                             child: Text(
                               'Signing in as: ${_selectedRole == 'customer' ? 'Customer' : 'Mechanic'}',
