@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'dart:convert';
+import '../../utils/location_helper.dart';
 
 class AddAddressScreen extends StatefulWidget {
   const AddAddressScreen({super.key});
@@ -35,7 +36,8 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        if (!mounted) return;
+        permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
         if (permission == LocationPermission.denied) {
           throw 'Location permissions are denied.';
         }
