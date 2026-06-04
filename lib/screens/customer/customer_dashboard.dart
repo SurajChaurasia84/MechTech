@@ -11,6 +11,7 @@ import 'tabs/history_tab.dart';
 import 'tabs/profile_tab.dart';
 import 'tabs/messages_tab.dart';
 import 'widgets/vehicle_selection_sheet.dart';
+import '../../utils/location_helper.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -53,7 +54,8 @@ class _CustomerDashboardState extends State<CustomerDashboard>
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        if (!mounted) return;
+        permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
       }
       if (permission == LocationPermission.deniedForever ||
           permission == LocationPermission.denied) {
