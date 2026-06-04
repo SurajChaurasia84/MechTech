@@ -650,6 +650,14 @@ class AppState extends ChangeNotifier {
         }, SetOptions(merge: true));
 
         _userRole = finalRole;
+
+        // Load appropriate bookings/jobs and update UI
+        if (_userRole == 'mechanic') {
+          await _loadMechanicJobsFromFirestore();
+        } else {
+          await _loadBookingsFromFirestore(firebaseUser.uid);
+        }
+        notifyListeners();
         return true;
       }
       return false;
