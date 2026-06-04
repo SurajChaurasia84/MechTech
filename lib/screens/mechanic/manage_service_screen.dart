@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../../models/service_model.dart';
+import '../../utils/location_helper.dart';
 
 class ManageServiceScreen extends StatefulWidget {
   final JobPost? existingPost;
@@ -203,7 +204,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        if (!mounted) return;
+        permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
         if (permission == LocationPermission.denied) {
           throw 'Location permissions are denied.';
         }
