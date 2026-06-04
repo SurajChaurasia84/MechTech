@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_state.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -354,6 +355,30 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    GestureDetector(
+                      onTap: () async {
+                        final Uri url = Uri.parse('https://surajchaurasia84.github.io/MechTech/');
+                        try {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Could not open Privacy Policy URL.')),
+                            );
+                          }
+                        }
+                      },
+                      child: Text(
+                        'By continuing, you agree to our Privacy Policy',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: const Color(0xFF8B88A5),
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
