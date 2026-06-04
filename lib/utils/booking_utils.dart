@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import '../screens/customer/edit_profile_screen.dart';
 import '../screens/customer/add_address_screen.dart';
+import 'location_helper.dart';
 
 class BookingPrepResult {
   final bool success;
@@ -132,7 +133,8 @@ class BookingUtils {
 
       permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        if (!context.mounted) return null;
+        permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
         if (permission == LocationPermission.denied) {
           return null;
         }
