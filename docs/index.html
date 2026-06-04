@@ -279,7 +279,7 @@
     <main>
         <div class="intro-section">
             <h1>Privacy Policy</h1>
-            <div class="last-updated">Last Updated: May 28, 2026</div>
+            <div class="last-updated">Last Updated: June 2, 2026</div>
         </div>
 
         <div class="content-card">
@@ -290,7 +290,10 @@
             <p>To provide high-quality premium mechanic booking services, we collect limited personal details, including:</p>
             <ul>
                 <li><strong>Profile Details:</strong> Your name, email address, and Google profile picture (retrieved via secure Google Sign-in authorization).</li>
-                <li><strong>Location & Address:</strong> The service location details you manually enter (Flat No, Street, City, and Pincode) to dispatch mechanic assistance to your vehicle.</li>
+                <li><strong>GPS Location Coordinates:</strong> Precise latitude and longitude coordinates fetched with your consent to sort nearby mechanics by distance.</li>
+                <li><strong>Location & Address:</strong> The service location details you manually enter or which are reverse-geocoded to dispatch mechanic assistance to your vehicle.</li>
+                <li><strong>Device Tokens:</strong> Your Firebase Cloud Messaging (FCM) registration token to deliver push notifications about booking alerts and chat messages.</li>
+                <li><strong>Chat Communications:</strong> Secure logs of text messages exchanged between customers and mechanics inside the application's chat rooms.</li>
                 <li><strong>Vehicle Information:</strong> The type (Car, Bike, EV) and model of your vehicle selected for browsing services.</li>
                 <li><strong>Booking History:</strong> Logs of your scheduled, in-progress, or completed services.</li>
             </ul>
@@ -299,6 +302,8 @@
             <p>We use the collected information for the following specific purposes:</p>
             <ul>
                 <li>To authenticate your identity securely and maintain your customer dashboard account.</li>
+                <li>To sort and match you with available mechanics in your immediate vicinity.</li>
+                <li>To send push notification updates for booking requests, status changes, and chat alerts.</li>
                 <li>To assign and direct physical mechanic services to your specified address.</li>
                 <li>To generate transaction records and manage booking timelines.</li>
                 <li>To contact you for support and service confirmations.</li>
