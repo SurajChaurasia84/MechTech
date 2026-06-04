@@ -667,6 +667,44 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Guest/Anonymous Sign-In Action (Play Store compliance)
+  Future<bool> signInAnonymously({required String selectedRole}) async {
+    try {
+      final UserCredential userCredential = await _auth.signInAnonymously();
+      final User? firebaseUser = userCredential.user;
+
+      if (firebaseUser != null) {
+        String finalRole = selectedRole;
+
+        // Save/update user profile in Firestore
+        await _firestore.collection('users').doc(firebaseUser.uid).set({
+          'uid': firebaseUser.uid,
+          'name': 'Guest User',
+          'email': 'guest@mechtech.com',
+          'photoUrl': '',
+          'role': finalRole,
+          'lastSignIn': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        _userRole = finalRole;
+
+        // Load appropriate bookings/jobs and update UI
+        if (_userRole == 'mechanic') {
+          await _loadMechanicJobsFromFirestore();
+        } else {
+          await _loadBookingsFromFirestore(firebaseUser.uid);
+        }
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error in Anonymous Sign-In: $e");
+      return false;
+    }
+  }
+
   // Logout Action
   Future<void> logout() async {
     await _auth.signOut();
