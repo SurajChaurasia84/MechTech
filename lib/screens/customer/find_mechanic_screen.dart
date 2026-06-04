@@ -9,6 +9,7 @@ import 'booking_summary_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../utils/booking_utils.dart';
 import 'widgets/vehicle_selection_sheet.dart';
+import '../../utils/location_helper.dart';
 
 class FindMechanicScreen extends StatefulWidget {
   final String? initialFilter;
@@ -183,7 +184,8 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      if (!mounted) return;
+      permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
       if (permission == LocationPermission.denied) {
         setState(() {
           _isLocationPermissionGranted = false;
