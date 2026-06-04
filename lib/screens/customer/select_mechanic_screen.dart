@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/app_state.dart';
 import 'booking_summary_screen.dart';
+import '../../utils/location_helper.dart';
 
 class SelectMechanicScreen extends StatefulWidget {
   final String? specialtyFilter;
@@ -53,7 +54,8 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
 
       permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        if (!mounted) return;
+        permission = await LocationHelper.requestLocationPermissionWithDisclosure(context);
         if (permission == LocationPermission.denied) {
           return;
         }
