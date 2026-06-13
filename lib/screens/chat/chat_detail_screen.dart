@@ -38,6 +38,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _markChatAsRead(String role) {
     final updateField = role == 'customer' ? 'unreadByCustomer' : 'unreadByMechanic';
     FirebaseFirestore.instance.collection('chats').doc(widget.roomId).update({
