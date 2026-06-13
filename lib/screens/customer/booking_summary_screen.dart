@@ -103,25 +103,59 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         throw Exception("Signature verification failed.");
       }
 
-      // 2. Refresh local bookings list to pull the backend-written record
-      await appState.refreshBookings();
+      // 2. Parse the verified booking directly from the backend response payload
+      final bookingMap = verificationData['booking'] as Map<String, dynamic>?;
+      if (bookingMap == null) {
+        throw Exception("Verification response did not contain booking details.");
+      }
+
+      // Resolve services by parsing the returned services list
+      final rawServices = (bookingMap['services'] as List<dynamic>?) ?? [];
+      final resolvedServices = rawServices.map((s) {
+        final name = s['name'] as String? ?? '';
+        return ServiceItem(
+          id: s['id'] as String? ?? '',
+          name: name,
+          price: (s['price'] as num?)?.toDouble() ?? 0.0,
+          description: 'Professional $name services.',
+          vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+          category: name,
+        );
+      }).toList();
+
+      final parsedBooking = ServiceBooking(
+        id: bookingMap['id'] as String? ?? serverBookingId,
+        customerName: bookingMap['customerName'] as String? ?? '',
+        customerId: bookingMap['customerId'] as String?,
+        customerPhone: bookingMap['customerPhone'] as String?,
+        customerEmail: bookingMap['customerEmail'] as String?,
+        vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+        vehicleModel: bookingMap['vehicleModel'] as String? ?? '',
+        selectedServices: resolvedServices,
+        bookingDate: DateTime.now(),
+        status: bookingMap['status'] as String? ?? 'Pending',
+        mechanicId: bookingMap['mechanicId'] as String?,
+        mechanicName: bookingMap['mechanicName'] as String?,
+        latitude: (bookingMap['latitude'] as num?)?.toDouble(),
+        longitude: (bookingMap['longitude'] as num?)?.toDouble(),
+        bookingLocation: bookingMap['bookingLocation'] as String?,
+        paymentId: bookingMap['paymentId'] as String?,
+        paymentStatus: bookingMap['paymentStatus'] as String?,
+      );
+
+      // 3. Trigger a background local list update
+      appState.refreshBookings();
 
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
 
-        // Resolve the booking from local list matching the new booking ID
-        final result = appState.bookings.firstWhere(
-          (b) => b.id == serverBookingId,
-          orElse: () => throw Exception("Failed to find verified booking record locally."),
-        );
-
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => BookingSuccessScreen(
               isSuccess: true,
-              booking: result,
+              booking: parsedBooking,
             ),
           ),
         );
