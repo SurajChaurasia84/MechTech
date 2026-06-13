@@ -994,10 +994,17 @@ class AppState extends ChangeNotifier {
         if (mechanicId != null) {
           sendNotification(
             recipientUid: mechanicId,
-            title: 'New Booking Request!',
-            body: '$name requested a service for ${newBooking.vehicleModel}.',
+            title: 'New Paid Booking!',
+            body: '$name has paid and requested a service for ${newBooking.vehicleModel}.',
           );
         }
+
+        // Send payment confirmation notification to customer
+        sendNotification(
+          recipientUid: _user!.uid,
+          title: 'Payment Successful!',
+          body: 'Your payment for ${newBooking.vehicleModel} service was successful and booking is confirmed.',
+        );
       } catch (e) {
         debugPrint("Error saving booking: $e");
         // Fallback: add locally if Firestore fails
