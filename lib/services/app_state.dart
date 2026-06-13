@@ -997,8 +997,6 @@ class AppState extends ChangeNotifier {
     }
 
     // Clear selection for next time
-    _selectedVehicleType = null;
-    _selectedVehicleModel = null;
     _selectedServices.clear();
 
     notifyListeners();
