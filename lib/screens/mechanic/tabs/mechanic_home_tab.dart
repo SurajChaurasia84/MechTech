@@ -34,6 +34,25 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
     }
   }
 
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final day = date.day.toString().padLeft(2, '0');
+    final month = months[date.month - 1];
+    final year = date.year;
+    
+    int hour = date.hour;
+    final period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour == 0) hour = 12;
+    final hourStr = hour.toString().padLeft(2, '0');
+    final minuteStr = date.minute.toString().padLeft(2, '0');
+    
+    return '$day $month $year, $hourStr:$minuteStr $period';
+  }
+
   void _handleMessageCustomer(ServiceBooking job, AppState appState) async {
     final mechanicId = appState.user?.uid;
     final customerId = job.customerId;
@@ -520,6 +539,23 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
               ],
             ),
             const Divider(color: Color(0xFF302B53), height: 20),
+
+            // Date & Time
+            Row(
+              children: [
+                const Icon(Icons.access_time_rounded, color: Color(0xFF8B88A5), size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDate(job.bookingDate),
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF8B88A5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
 
             // Vehicle info
             Row(
