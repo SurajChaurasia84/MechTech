@@ -96,6 +96,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
           .orderBy('createdAt', descending: true)
           .get();
 
+      if (!mounted) return;
       final List<Map<String, dynamic>> loadedMechs = [];
       final appState = Provider.of<AppState>(context, listen: false);
       final customerModel = appState.selectedVehicleModel;
@@ -159,6 +160,7 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
         });
       }
 
+      if (!mounted) return;
       setState(() {
         _mechanics = loadedMechs;
         _isLoadingMechanics = false;
@@ -169,7 +171,9 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
       }
     } catch (e) {
       debugPrint("Error fetching mechanics: $e");
-      setState(() => _isLoadingMechanics = false);
+      if (mounted) {
+        setState(() => _isLoadingMechanics = false);
+      }
     }
   }
 
