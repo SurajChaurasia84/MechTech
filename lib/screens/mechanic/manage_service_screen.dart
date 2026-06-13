@@ -102,6 +102,28 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     _loadCurrentServiceProfile();
   }
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _expController.dispose();
+    _bioController.dispose();
+    _locationController.dispose();
+    _customModelController.dispose();
+
+    // Dispose dynamic specialization controllers
+    for (final ctrl in _specializationRates.values) {
+      ctrl.dispose();
+    }
+
+    // Dispose custom service controllers
+    for (final entry in _customServices) {
+      entry['name']?.dispose();
+      entry['rate']?.dispose();
+    }
+
+    super.dispose();
+  }
+
   Future<void> _loadCurrentServiceProfile() async {
     if (widget.existingPost != null) {
       final post = widget.existingPost!;
