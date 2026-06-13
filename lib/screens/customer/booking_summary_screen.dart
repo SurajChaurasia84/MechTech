@@ -65,59 +65,66 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Verify payment signature on the backend securely
+      final appState = Provider.of<AppState>(context, listen: false);
+      final prep = _cachedPrepResult;
+      final token = await appState.user?.getIdToken();
+
+      // 1. Verify payment signature on the backend securely & write booking
       final verificationUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/verify-payment');
       final verifyResponse = await http.post(
         verificationUrl,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'orderId': response.orderId,
           'paymentId': response.paymentId,
           'signature': response.signature,
+          'mechanicId': widget.mechanicId,
+          'vehicleModel': appState.selectedVehicleModel ?? '',
+          'vehicleType': appState.selectedVehicleType?.name ?? 'car',
+          'services': appState.selectedServices.map((s) => s.name).toList(),
+          'latitude': prep?.position?.latitude,
+          'longitude': prep?.position?.longitude,
+          'bookingLocation': prep?.address,
         }),
       );
 
       if (verifyResponse.statusCode != 200) {
-        throw Exception("Server verification rejected payment signature.");
+        throw Exception("Server verification rejected payment signature: ${verifyResponse.body}");
       }
 
       final verificationData = jsonDecode(verifyResponse.body);
       final isVerified = verificationData['verified'] as bool? ?? false;
+      final serverBookingId = verificationData['bookingId'] as String?;
 
-      if (!isVerified) {
+      if (!isVerified || serverBookingId == null) {
         throw Exception("Signature verification failed.");
       }
 
-      // 2. Submit booking to database
-      final appState = Provider.of<AppState>(context, listen: false);
-      final prep = _cachedPrepResult;
-
-      final result = await appState.submitBooking(
-        latitude: prep?.position?.latitude,
-        longitude: prep?.position?.longitude,
-        bookingLocation: prep?.address,
-        mechanicId: widget.mechanicId,
-        mechanicName: widget.mechanicName,
-        paymentId: response.paymentId,
-        paymentStatus: 'paid',
-      );
+      // 2. Refresh local bookings list to pull the backend-written record
+      await appState.refreshBookings();
 
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        if (result != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => BookingSuccessScreen(
-                isSuccess: true,
-                booking: result,
-              ),
+
+        // Resolve the booking from local list matching the new booking ID
+        final result = appState.bookings.firstWhere(
+          (b) => b.id == serverBookingId,
+          orElse: () => throw Exception("Failed to find verified booking record locally."),
+        );
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              isSuccess: true,
+              booking: result,
             ),
-          );
-        } else {
-          throw Exception("Failed to create booking record locally.");
-        }
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Error handling payment success: $e");
@@ -169,35 +176,39 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       _cachedPrepResult = prepResult;
 
-      // Prices calculation
-      final serviceTotal = appState.selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
-      final commission = serviceTotal * PaymentConfig.commissionRate;
-      final grandTotal = serviceTotal + commission;
-
-      final amountInPaise = (grandTotal * 100).round();
+      final token = await appState.user?.getIdToken();
 
       // Create Razorpay Order on Vercel Backend securely
       final orderCreationUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/create-order');
       final orderResponse = await http.post(
         orderCreationUrl,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'amount': amountInPaise}),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'mechanicId': widget.mechanicId,
+          'vehicleModel': appState.selectedVehicleModel ?? '',
+          'vehicleType': appState.selectedVehicleType?.name ?? 'car',
+          'services': appState.selectedServices.map((s) => s.name).toList(),
+        }),
       );
 
       if (orderResponse.statusCode != 200) {
-        throw Exception("Failed to generate order ID from backend.");
+        throw Exception("Failed to generate order ID from backend: ${orderResponse.body}");
       }
 
       final orderData = jsonDecode(orderResponse.body);
       final orderId = orderData['orderId'] as String?;
+      final serverAmount = orderData['amount'] as num?;
 
-      if (orderId == null || orderId.isEmpty) {
-        throw Exception("Generated Order ID is null or empty.");
+      if (orderId == null || orderId.isEmpty || serverAmount == null) {
+        throw Exception("Generated Order ID or amount is null or empty.");
       }
 
       final options = {
         'key': PaymentConfig.razorpayKeyId,
-        'amount': amountInPaise,
+        'amount': serverAmount,
         'name': 'MechTech Services',
         'description': 'Booking Service Payment',
         'order_id': orderId,
