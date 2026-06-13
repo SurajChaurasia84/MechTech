@@ -1,3 +1,5 @@
+import '../utils/payment_config.dart';
+
 enum VehicleType {
   car,
   bike,
@@ -43,6 +45,16 @@ class ServiceItem {
     required this.vehicleType,
     required this.category,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServiceItem &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class JobPost {
@@ -101,6 +113,8 @@ class ServiceBooking {
   final double? latitude;
   final double? longitude;
   final String? bookingLocation;
+  final String? paymentId;
+  final String? paymentStatus;
 
   ServiceBooking({
     required this.id,
@@ -118,7 +132,11 @@ class ServiceBooking {
     this.latitude,
     this.longitude,
     this.bookingLocation,
+    this.paymentId,
+    this.paymentStatus,
   });
 
-  double get totalAmount => selectedServices.fold(0, (sum, item) => sum + item.price);
+  double get serviceTotal => selectedServices.fold(0.0, (sum, item) => sum + item.price);
+  double get commission => serviceTotal * PaymentConfig.commissionRate;
+  double get totalAmount => serviceTotal + commission;
 }
