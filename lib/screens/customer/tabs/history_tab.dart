@@ -447,6 +447,7 @@ class HistoryTab extends StatelessWidget {
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(); // Close dialog
+                final appState = context.read<AppState>();
                 
                 // Show loading indicator dialog
                 showDialog(
@@ -454,7 +455,6 @@ class HistoryTab extends StatelessWidget {
                   barrierDismissible: false,
                   builder: (loadingContext) {
                     Future.microtask(() async {
-                      final appState = context.read<AppState>();
                       final success = await appState.cancelBooking(booking.id);
                       
                       if (loadingContext.mounted) {
