@@ -279,6 +279,62 @@ class HistoryTab extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              // Payment Info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D0B18),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: (booking.paymentStatus == 'paid'
+                            ? const Color(0xFF00E676)
+                            : const Color(0xFFFF5252))
+                        .withValues(alpha: 0.4),
+                    width: 1.2,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Payment Status', style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (booking.paymentStatus == 'paid'
+                                    ? const Color(0xFF00E676)
+                                    : const Color(0xFFFF5252))
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: (booking.paymentStatus == 'paid'
+                                      ? const Color(0xFF00E676)
+                                      : const Color(0xFFFF5252))
+                                  .withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Text(
+                            (booking.paymentStatus ?? 'unpaid').toUpperCase(),
+                            style: GoogleFonts.inter(
+                              color: booking.paymentStatus == 'paid'
+                                  ? const Color(0xFF00E676)
+                                  : const Color(0xFFFF5252),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (booking.paymentId != null && booking.paymentId!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow('Transaction ID', booking.paymentId!),
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               // Services Ordered List
               Text(
