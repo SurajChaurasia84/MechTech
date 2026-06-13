@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import '../../utils/booking_utils.dart';
+import '../../utils/payment_config.dart';
+import 'booking_success_screen.dart';
 
 class BookingSummaryScreen extends StatefulWidget {
   final String? mechanicId;
@@ -22,45 +27,204 @@ class BookingSummaryScreen extends StatefulWidget {
 }
 
 class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
-  bool _isSuccess = false;
   bool _isLoading = false;
-  ServiceBooking? _bookingResult;
+  late Razorpay _razorpay;
+  BookingPrepResult? _cachedPrepResult;
 
   @override
   void initState() {
     super.initState();
     if (widget.bookingResult != null) {
-      _bookingResult = widget.bookingResult;
-      _isSuccess = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => BookingSuccessScreen(
+                isSuccess: true,
+                booking: widget.bookingResult!,
+              ),
+            ),
+          );
+        }
+      });
     }
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Verify payment signature on the backend securely
+      final verificationUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/verify-payment');
+      final verifyResponse = await http.post(
+        verificationUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'orderId': response.orderId,
+          'paymentId': response.paymentId,
+          'signature': response.signature,
+        }),
+      );
+
+      if (verifyResponse.statusCode != 200) {
+        throw Exception("Server verification rejected payment signature.");
+      }
+
+      final verificationData = jsonDecode(verifyResponse.body);
+      final isVerified = verificationData['verified'] as bool? ?? false;
+
+      if (!isVerified) {
+        throw Exception("Signature verification failed.");
+      }
+
+      // 2. Submit booking to database
+      final appState = Provider.of<AppState>(context, listen: false);
+      final prep = _cachedPrepResult;
+
+      final result = await appState.submitBooking(
+        latitude: prep?.position?.latitude,
+        longitude: prep?.position?.longitude,
+        bookingLocation: prep?.address,
+        mechanicId: widget.mechanicId,
+        mechanicName: widget.mechanicName,
+        paymentId: response.paymentId,
+        paymentStatus: 'paid',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (result != null) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => BookingSuccessScreen(
+                isSuccess: true,
+                booking: result,
+              ),
+            ),
+          );
+        } else {
+          throw Exception("Failed to create booking record locally.");
+        }
+      }
+    } catch (e) {
+      debugPrint("Error handling payment success: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              isSuccess: false,
+              errorMessage: 'Security verification failed: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    
+    // Redirect directly to failed status screen
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => BookingSuccessScreen(
+          isSuccess: false,
+          errorMessage: response.message ?? "Transaction cancelled or failed.",
+        ),
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    debugPrint("External Wallet Selected: ${response.walletName}");
   }
 
   Future<void> _bookService(AppState appState) async {
     setState(() => _isLoading = true);
 
-    // Call helper to check phone number and fetch location
-    final prepResult = await BookingUtils.prepareForBooking(context);
-    if (!prepResult.success) {
+    try {
+      // Call helper to check phone number and fetch location
+      final prepResult = await BookingUtils.prepareForBooking(context);
+      if (!prepResult.success) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      _cachedPrepResult = prepResult;
+
+      // Prices calculation
+      final serviceTotal = appState.selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
+      final commission = serviceTotal * PaymentConfig.commissionRate;
+      final grandTotal = serviceTotal + commission;
+
+      final amountInPaise = (grandTotal * 100).round();
+
+      // Create Razorpay Order on Vercel Backend securely
+      final orderCreationUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/create-order');
+      final orderResponse = await http.post(
+        orderCreationUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'amount': amountInPaise}),
+      );
+
+      if (orderResponse.statusCode != 200) {
+        throw Exception("Failed to generate order ID from backend.");
+      }
+
+      final orderData = jsonDecode(orderResponse.body);
+      final orderId = orderData['orderId'] as String?;
+
+      if (orderId == null || orderId.isEmpty) {
+        throw Exception("Generated Order ID is null or empty.");
+      }
+
+      final options = {
+        'key': PaymentConfig.razorpayKeyId,
+        'amount': amountInPaise,
+        'name': 'MechTech Services',
+        'description': 'Booking Service Payment',
+        'order_id': orderId,
+        'timeout': 300,
+        'prefill': {
+          'contact': appState.currentCustomerPhone ?? '',
+          'email': appState.currentCustomerEmail ?? '',
+        },
+        'theme': {
+          'color': '#00E676',
+        }
+      };
+
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint("Error starting booking service payment: $e");
       if (mounted) {
         setState(() => _isLoading = false);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              isSuccess: false,
+              errorMessage: 'Could not configure payment order: $e',
+            ),
+          ),
+        );
       }
-      return;
-    }
-
-    // Submit booking with fetched location details
-    final result = await appState.submitBooking(
-      latitude: prepResult.position?.latitude,
-      longitude: prepResult.position?.longitude,
-      bookingLocation: prepResult.address,
-      mechanicId: widget.mechanicId,
-      mechanicName: widget.mechanicName,
-    );
-    if (mounted) {
-      setState(() {
-        _bookingResult = result;
-        _isSuccess = result != null;
-        _isLoading = false;
-      });
     }
   }
 
@@ -72,11 +236,9 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     final selectedServices = appState.selectedServices;
 
     // Prices calculation
-    final total = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
-
-    if (_isSuccess && _bookingResult != null) {
-      return _buildSuccessScreen(context, _bookingResult!);
-    }
+    final serviceTotal = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
+    final commission = serviceTotal * PaymentConfig.commissionRate;
+    final total = serviceTotal + commission;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -283,24 +445,68 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: const Color(0xFF302B53), width: 1.2),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          child: Column(
                             children: [
-                              Text(
-                                'Total Amount',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Service Charges',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      color: const Color(0xFF8B88A5),
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${serviceTotal.toStringAsFixed(2)}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '₹${total.toStringAsFixed(2)}',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF00E676),
-                                ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Platform Charges (7%)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      color: const Color(0xFF8B88A5),
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${commission.toStringAsFixed(2)}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(color: Color(0xFF302B53), height: 24, thickness: 1.2),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Total Amount',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${total.toStringAsFixed(2)}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF00E676),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -346,7 +552,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                   ),
                                 )
                               : Text(
-                                  'Book Now',
+                                  'Pay & Book Now',
                                   style: GoogleFonts.outfit(
                                     color: const Color(0xFF0D0B18),
                                     fontSize: 18,
@@ -363,161 +569,6 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-
-  Widget _buildSuccessScreen(BuildContext context, ServiceBooking booking) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0B18),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Animated Success Tick Container
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF00E676).withOpacity(0.1),
-                    border: Border.all(color: const Color(0xFF00E676), width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00E676).withOpacity(0.2),
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 80,
-                    color: Color(0xFF00E676),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Booking Confirmed!',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your booking request has been successfully created.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: const Color(0xFF8B88A5),
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Booking ID / details
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161426),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF302B53), width: 1.2),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Booking ID',
-                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
-                          ),
-                          Text(
-                            booking.id,
-                            style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Vehicle Model',
-                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
-                          ),
-                          Text(
-                            booking.vehicleModel,
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Services Booked',
-                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
-                          ),
-                          Text(
-                            '${booking.selectedServices.length} items',
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Total Paid',
-                            style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
-                          ),
-                          Text(
-                            '₹${booking.totalAmount.toStringAsFixed(2)}',
-                            style: GoogleFonts.outfit(color: const Color(0xFF00B0FF), fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 48),
-
-                // Done / Back to Home Button
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF302B53), width: 1.5),
-                      color: const Color(0xFF161426),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Back to Dashboard',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
