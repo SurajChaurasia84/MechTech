@@ -145,6 +145,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       // 3. Trigger a background local list update
       appState.refreshBookings();
+      appState.clearServiceSelection();
 
       if (mounted) {
         setState(() {
