@@ -281,6 +281,8 @@ class AppState extends ChangeNotifier {
           latitude: (data['latitude'] as num?)?.toDouble(),
           longitude: (data['longitude'] as num?)?.toDouble(),
           bookingLocation: data['bookingLocation'] as String?,
+          paymentId: data['paymentId'] as String?,
+          paymentStatus: data['paymentStatus'] as String?,
         ));
       }
     } catch (e) {
@@ -339,6 +341,8 @@ class AppState extends ChangeNotifier {
           latitude: (data['latitude'] as num?)?.toDouble(),
           longitude: (data['longitude'] as num?)?.toDouble(),
           bookingLocation: data['bookingLocation'] as String?,
+          paymentId: data['paymentId'] as String?,
+          paymentStatus: data['paymentStatus'] as String?,
         ));
       }
     } catch (e) {
@@ -912,6 +916,8 @@ class AppState extends ChangeNotifier {
     String? bookingLocation,
     String? mechanicId,
     String? mechanicName,
+    String? paymentId,
+    String? paymentStatus,
   }) async {
     final name = currentCustomerName;
     if (name == null ||
@@ -936,6 +942,8 @@ class AppState extends ChangeNotifier {
       bookingLocation: bookingLocation,
       mechanicId: mechanicId,
       mechanicName: mechanicName,
+      paymentId: paymentId,
+      paymentStatus: paymentStatus,
     );
 
     // Save to Firestore first
@@ -949,6 +957,8 @@ class AppState extends ChangeNotifier {
           'customerEmail': currentCustomerEmail,
           'vehicleType': _selectedVehicleType!.name,
           'vehicleModel': _selectedVehicleModel,
+          'serviceTotal': newBooking.serviceTotal,
+          'commission': newBooking.commission,
           'totalAmount': newBooking.totalAmount,
           'bookingDate': FieldValue.serverTimestamp(),
           'status': newBooking.status,
@@ -957,6 +967,8 @@ class AppState extends ChangeNotifier {
           'latitude': latitude,
           'longitude': longitude,
           'bookingLocation': bookingLocation,
+          'paymentId': paymentId,
+          'paymentStatus': paymentStatus ?? 'unpaid',
           'services': _selectedServices
               .map((s) => {'id': s.id, 'name': s.name, 'price': s.price})
               .toList(),
