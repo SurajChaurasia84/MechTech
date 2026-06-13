@@ -499,7 +499,7 @@ class _MechanicHomeTabState extends State<MechanicHomeTab> {
   }
 
   Widget _buildJobCard(ServiceBooking job, AppState appState, {required bool isActive}) {
-    final grandTotal = job.totalAmount;
+    final grandTotal = job.mechanicEarnings;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),

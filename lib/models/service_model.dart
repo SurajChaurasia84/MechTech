@@ -140,4 +140,5 @@ class ServiceBooking {
   double get commission => serviceTotal * PaymentConfig.commissionRate;
   double get platformFee => PaymentConfig.platformFee;
   double get totalAmount => serviceTotal + platformFee;
+  double get mechanicEarnings => serviceTotal - commission;
 }

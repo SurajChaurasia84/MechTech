@@ -39,7 +39,7 @@ class MechanicEarningsTab extends StatelessWidget {
     // Calculations
     double totalEarnings = 0;
     for (final job in completedJobs) {
-      totalEarnings += job.totalAmount;
+      totalEarnings += job.mechanicEarnings;
     }
 
     return SafeArea(
@@ -179,7 +179,7 @@ class MechanicEarningsTab extends StatelessWidget {
   }
 
   Widget _buildHistoryCard(ServiceBooking job) {
-    final grandTotal = job.totalAmount;
+    final grandTotal = job.mechanicEarnings;
     final dateStr = _formatDate(job.bookingDate);
 
     return Padding(
