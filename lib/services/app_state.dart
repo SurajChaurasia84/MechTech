@@ -203,11 +203,17 @@ class AppState extends ChangeNotifier {
         return;
       }
 
-      // 2. Post to Vercel Gateway
+      // 2. Retrieve dynamic authentication token
+      final token = await _user?.getIdToken();
+
+      // 3. Post to Vercel Gateway
       final url = Uri.parse('https://vercel-ten-gray-35.vercel.app/api/send-notification');
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'token': fcmToken,
           'title': title,
@@ -1090,6 +1096,14 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error cancelling booking: $e");
       return false;
+    }
+  }
+
+  Future<void> refreshBookings() async {
+    final uid = _user?.uid;
+    if (uid != null) {
+      await _loadBookingsFromFirestore(uid);
+      notifyListeners();
     }
   }
 }
