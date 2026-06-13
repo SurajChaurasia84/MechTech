@@ -248,8 +248,8 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
     // Prices calculation
     final serviceTotal = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
-    final commission = serviceTotal * PaymentConfig.commissionRate;
-    final total = serviceTotal + commission;
+    const platformFee = PaymentConfig.platformFee;
+    final total = serviceTotal + platformFee;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -482,14 +482,14 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Platform Charges (7%)',
+                                    'Platform Charges',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       color: const Color(0xFF8B88A5),
                                     ),
                                   ),
                                   Text(
-                                    '₹${commission.toStringAsFixed(2)}',
+                                    '₹${platformFee.toStringAsFixed(2)}',
                                     style: GoogleFonts.outfit(
                                       fontSize: 14,
                                       color: Colors.white,

@@ -138,5 +138,6 @@ class ServiceBooking {
 
   double get serviceTotal => selectedServices.fold(0.0, (sum, item) => sum + item.price);
   double get commission => serviceTotal * PaymentConfig.commissionRate;
-  double get totalAmount => serviceTotal + commission;
+  double get platformFee => PaymentConfig.platformFee;
+  double get totalAmount => serviceTotal + platformFee;
 }

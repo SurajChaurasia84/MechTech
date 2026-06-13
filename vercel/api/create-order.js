@@ -88,8 +88,8 @@ module.exports = async (req, res) => {
       serviceTotal += rate;
     }
 
-    const commission = serviceTotal * 0.07;
-    const grandTotal = serviceTotal + commission;
+    const platformFee = 5.0; // Flat ₹5 platform fee for customer
+    const grandTotal = serviceTotal + platformFee;
     const amountInPaise = Math.round(grandTotal * 100);
 
     // 4. Create order via Razorpay API

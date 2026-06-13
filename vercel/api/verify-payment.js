@@ -164,8 +164,11 @@ module.exports = async (req, res) => {
       };
     });
 
-    const commission = serviceTotal * 0.07;
-    const grandTotal = serviceTotal + commission;
+    const platformFee = 5.0; // Flat ₹5 platform fee for customer
+    const commission = serviceTotal * 0.07; // 7% deduction from mechanic charges
+    const grandTotal = serviceTotal + platformFee; // Total paid by customer
+    const mechanicEarnings = serviceTotal - commission; // Mechanic net earnings
+    const ownerRevenue = platformFee + commission; // Total owner revenue (₹5 + 7%)
 
     // Generate Booking ID (MT- style)
     const bookingId = `MT-${Date.now().toString().substring(7)}`;
@@ -179,8 +182,11 @@ module.exports = async (req, res) => {
       vehicleType: vehicleType,
       vehicleModel: vehicleModel,
       serviceTotal: serviceTotal,
+      platformFee: platformFee,
       commission: commission,
       totalAmount: grandTotal,
+      mechanicEarnings: mechanicEarnings,
+      ownerRevenue: ownerRevenue,
       bookingDate: admin.firestore.FieldValue.serverTimestamp(),
       status: 'Pending',
       mechanicId: mechanicId,

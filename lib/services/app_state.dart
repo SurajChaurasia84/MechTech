@@ -964,6 +964,7 @@ class AppState extends ChangeNotifier {
           'vehicleType': _selectedVehicleType!.name,
           'vehicleModel': _selectedVehicleModel,
           'serviceTotal': newBooking.serviceTotal,
+          'platformFee': newBooking.platformFee,
           'commission': newBooking.commission,
           'totalAmount': newBooking.totalAmount,
           'bookingDate': FieldValue.serverTimestamp(),
