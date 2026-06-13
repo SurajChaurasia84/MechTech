@@ -7,7 +7,6 @@ import '../../services/app_state.dart';
 import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../utils/booking_utils.dart';
 import 'widgets/vehicle_selection_sheet.dart';
 import '../../utils/location_helper.dart';
 
@@ -478,41 +477,9 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
       return;
     }
     
-    // Check if the customer already has vehicle type and services selected
-    if (appState.selectedVehicleType != null && appState.selectedServices.isNotEmpty) {
-      // Check if the mechanic offers all selected services
-      final specRates = Map<String, int>.from(mechanic['specializationRates'] ?? {});
-      final selected = appState.selectedServices;
-      for (final service in selected) {
-        final rate = specRates[service.category] ?? specRates[service.name];
-        if (rate == null || rate <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("${mechanic['name']} does not offer ${service.name} for this vehicle model."),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-      }
-
-      // Apply mechanic rates to selected services in AppState
-      appState.applyMechanicRates(specRates);
-
-      // Direct booking summary
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BookingSummaryScreen(
-            mechanicId: mechanic['mechanicId'] as String?,
-            mechanicName: mechanic['name'] as String?,
-          ),
-        ),
-      );
-    } else {
-      // Need selection - show quick booking sheet
-      _showQuickBookingSheet(mechanic);
-    }
+    // In FindMechanicScreen (general search), always show the quick booking sheet
+    // to let the user select the services they want for this specific mechanic.
+    _showQuickBookingSheet(mechanic);
   }
 
   void _showQuickBookingSheet(Map<String, dynamic> mechanic) {
@@ -1200,52 +1167,59 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
       _selectedType = appState.selectedVehicleType!;
       _selectedModel = appState.selectedVehicleModel;
     }
+    // Pre-populate previously selected services from AppState
+    _selectedServices.addAll(appState.selectedServices);
     _updateMechanicServices(appState);
   }
   Future<void> _updateMechanicServices(AppState appState) async {
-    final bool typeMatches = _selectedType.name.toLowerCase() == (widget.mechanic['vehicleCategory'] as String? ?? 'car').toLowerCase();
-    
-    final mechanicCategories = typeMatches
-        ? ((widget.mechanic['categories'] as List<dynamic>?)
-            ?.map((c) => c.toString())
-            .where((c) => c != 'All')
-            .toList() ?? [])
-        : <String>[];
-        
-    final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final bool typeMatches = _selectedType.name.toLowerCase() == (widget.mechanic['vehicleCategory'] as String? ?? 'car').toLowerCase();
+      
+      final mechanicCategories = typeMatches
+          ? ((widget.mechanic['categories'] as List<dynamic>?)
+              ?.map((c) => c.toString())
+              .where((c) => c != 'All')
+              .toList() ?? [])
+          : <String>[];
+          
+      final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
 
-    if (_selectedModel != null) {
-      appState.selectVehicleType(_selectedType);
-      appState.selectVehicleModel(_selectedModel!);
-      await appState.fetchActiveServices();
-    }
-    
-    final catalogServices = appState.getServicesForType(_selectedType);
+      if (_selectedModel != null) {
+        appState.selectVehicleType(_selectedType);
+        appState.selectVehicleModel(_selectedModel!);
+        await appState.fetchActiveServices();
+      }
+      
+      final catalogServices = appState.getServicesForType(_selectedType);
 
-    final updatedServices = mechanicCategories.map((catName) {
-      ServiceItem? matchingCatalog;
-      try {
-        matchingCatalog = catalogServices.firstWhere(
-          (s) => s.category.toLowerCase() == catName.toLowerCase() || s.name.toLowerCase() == catName.toLowerCase(),
+      final updatedServices = mechanicCategories.map((catName) {
+        ServiceItem? matchingCatalog;
+        try {
+          matchingCatalog = catalogServices.firstWhere(
+            (s) => s.category.toLowerCase() == catName.toLowerCase() || s.name.toLowerCase() == catName.toLowerCase(),
+          );
+        } catch (_) {}
+
+        final rate = specRates[catName] ?? 0;
+        return ServiceItem(
+          id: matchingCatalog?.id ?? 'dyn_${catName.hashCode}',
+          name: matchingCatalog?.name ?? catName,
+          price: rate.toDouble(),
+          description: matchingCatalog?.description ?? 'Professional $catName services offered by ${widget.mechanic['name']}.',
+          vehicleType: _selectedType,
+          category: matchingCatalog?.category ?? catName,
         );
-      } catch (_) {}
+      }).toList();
 
-      final rate = specRates[catName] ?? 0;
-      return ServiceItem(
-        id: matchingCatalog?.id ?? 'dyn_${catName.hashCode}',
-        name: matchingCatalog?.name ?? catName,
-        price: rate.toDouble(),
-        description: matchingCatalog?.description ?? 'Professional $catName services offered by ${widget.mechanic['name']}.',
-        vehicleType: _selectedType,
-        category: matchingCatalog?.category ?? catName,
-      );
-    }).toList();
-
-    if (mounted) {
-      setState(() {
-        _mechanicServices = updatedServices;
-      });
-    }
+      if (mounted) {
+        setState(() {
+          _mechanicServices = updatedServices;
+          // Only retain selected services that are offered by the mechanic
+          _selectedServices.retainWhere((selected) =>
+              updatedServices.any((offered) => offered.id == selected.id));
+        });
+      }
+    });
   }
 
   @override
@@ -1491,17 +1465,8 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
-                          ? () async {
+                          ? () {
                               setState(() => _isBooking = true);
-                              
-                              // Call helper to check phone number and fetch location
-                              final prepResult = await BookingUtils.prepareForBooking(context);
-                              if (!prepResult.success) {
-                                if (mounted) {
-                                  setState(() => _isBooking = false);
-                                }
-                                return;
-                              }
 
                               // Setup the AppState selections so submitBooking registers it
                               appState.selectVehicleType(_selectedType);
@@ -1515,28 +1480,16 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                               final specRates = Map<String, int>.from(widget.mechanic['specializationRates'] ?? {});
                               appState.applyMechanicRates(specRates);
 
-                              // Submit booking
-                              final booking = await appState.submitBooking(
-                                latitude: prepResult.position?.latitude,
-                                longitude: prepResult.position?.longitude,
-                                bookingLocation: prepResult.address,
-                                mechanicId: widget.mechanic['mechanicId'] as String?,
-                                mechanicName: widget.mechanic['name'] as String?,
-                              );
-                              
                               if (context.mounted) {
                                 Navigator.of(context).pop(); // close sheet
-                                if (booking != null) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => BookingSummaryScreen(
-                                        mechanicId: widget.mechanic['mechanicId'] as String?,
-                                        mechanicName: widget.mechanic['name'] as String?,
-                                        bookingResult: booking,
-                                      ),
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => BookingSummaryScreen(
+                                      mechanicId: widget.mechanic['mechanicId'] as String?,
+                                      mechanicName: widget.mechanic['name'] as String?,
                                     ),
-                                  );
-                                }
+                                  ),
+                                );
                               }
                             }
                           : null,
