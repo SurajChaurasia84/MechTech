@@ -897,6 +897,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void resetSelectionRatesToDefault() {
+    for (int i = 0; i < _selectedServices.length; i++) {
+      final service = _selectedServices[i];
+      try {
+        final catalogService = _activeServices.firstWhere((s) => s.id == service.id);
+        _selectedServices[i] = catalogService;
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
   Future<void> saveSelectedVehicle(VehicleType type, String model) async {
     _selectedVehicleType = type;
     _selectedVehicleModel = model;
