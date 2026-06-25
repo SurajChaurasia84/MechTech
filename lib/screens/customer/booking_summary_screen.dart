@@ -30,6 +30,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   bool _isLoading = false;
   late Razorpay _razorpay;
   BookingPrepResult? _cachedPrepResult;
+  String _selectedPaymentMethod = 'Online';
 
   @override
   void initState() {
@@ -267,6 +268,118 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
             builder: (_) => BookingSuccessScreen(
               isSuccess: false,
               errorMessage: 'Could not configure payment order: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _bookServiceWithCOD(AppState appState) async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Call helper to check phone number and fetch location
+      final prepResult = await BookingUtils.prepareForBooking(context);
+      if (!prepResult.success) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final token = await appState.user?.getIdToken();
+
+      // Call new secure Vercel API for COD booking
+      final codUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/create-cod-booking');
+      final response = await http.post(
+        codUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'mechanicId': widget.mechanicId,
+          'vehicleModel': appState.selectedVehicleModel ?? '',
+          'vehicleType': appState.selectedVehicleType?.name ?? 'car',
+          'services': appState.selectedServices.map((s) => s.name).toList(),
+          'latitude': prepResult.position?.latitude,
+          'longitude': prepResult.position?.longitude,
+          'bookingLocation': prepResult.address,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception("Failed to create COD booking: ${response.body}");
+      }
+
+      final responseData = jsonDecode(response.body);
+      final bookingMap = responseData['booking'] as Map<String, dynamic>?;
+      if (bookingMap == null) {
+        throw Exception("Server did not return booking details.");
+      }
+
+      // Parse booking
+      final rawServices = (bookingMap['services'] as List<dynamic>?) ?? [];
+      final resolvedServices = rawServices.map((s) {
+        final name = s['name'] as String? ?? '';
+        return ServiceItem(
+          id: s['id'] as String? ?? '',
+          name: name,
+          price: (s['price'] as num?)?.toDouble() ?? 0.0,
+          description: 'Professional $name services.',
+          vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+          category: name,
+        );
+      }).toList();
+
+      final parsedBooking = ServiceBooking(
+        id: bookingMap['id'] as String? ?? '',
+        customerName: bookingMap['customerName'] as String? ?? '',
+        customerId: bookingMap['customerId'] as String?,
+        customerPhone: bookingMap['customerPhone'] as String?,
+        customerEmail: bookingMap['customerEmail'] as String?,
+        vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+        vehicleModel: bookingMap['vehicleModel'] as String? ?? '',
+        selectedServices: resolvedServices,
+        bookingDate: DateTime.now(),
+        status: bookingMap['status'] as String? ?? 'Pending',
+        mechanicId: bookingMap['mechanicId'] as String?,
+        mechanicName: bookingMap['mechanicName'] as String?,
+        latitude: (bookingMap['latitude'] as num?)?.toDouble(),
+        longitude: (bookingMap['longitude'] as num?)?.toDouble(),
+        bookingLocation: bookingMap['bookingLocation'] as String?,
+        paymentId: bookingMap['paymentId'] as String?,
+        paymentStatus: bookingMap['paymentStatus'] as String?,
+      );
+
+      // Trigger local list updates
+      appState.refreshBookings();
+      appState.clearServiceSelection();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              isSuccess: true,
+              booking: parsedBooking,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error creating COD booking: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => BookingSuccessScreen(
+              isSuccess: false,
+              errorMessage: 'Could not complete booking: $e',
             ),
           ),
         );
@@ -557,6 +670,171 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 24),
+                        // Payment Method Selection
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF161426),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF302B53), width: 1.2),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Select Payment Method',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Pay Online (Razorpay)
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedPaymentMethod = 'Online';
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: _selectedPaymentMethod == 'Online'
+                                        ? const Color(0xFF00E676).withOpacity(0.08)
+                                        : const Color(0xFF0D0B18),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _selectedPaymentMethod == 'Online'
+                                          ? const Color(0xFF00E676)
+                                          : const Color(0xFF302B53),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.payment_rounded,
+                                        color: _selectedPaymentMethod == 'Online'
+                                            ? const Color(0xFF00E676)
+                                            : const Color(0xFF8B88A5),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Pay Online',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Pay securely via UPI, Cards, or NetBanking',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: const Color(0xFF8B88A5),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Radio<String>(
+                                        value: 'Online',
+                                        groupValue: _selectedPaymentMethod,
+                                        activeColor: const Color(0xFF00E676),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            setState(() {
+                                              _selectedPaymentMethod = val;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Cash on Delivery (COD)
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedPaymentMethod = 'COD';
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: _selectedPaymentMethod == 'COD'
+                                        ? const Color(0xFF00E676).withOpacity(0.08)
+                                        : const Color(0xFF0D0B18),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _selectedPaymentMethod == 'COD'
+                                          ? const Color(0xFF00E676)
+                                          : const Color(0xFF302B53),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.payments_rounded,
+                                        color: _selectedPaymentMethod == 'COD'
+                                            ? const Color(0xFF00E676)
+                                            : const Color(0xFF8B88A5),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Cash on Delivery (COD)',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Pay in cash after the service is completed',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                color: const Color(0xFF8B88A5),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Radio<String>(
+                                        value: 'COD',
+                                        groupValue: _selectedPaymentMethod,
+                                        activeColor: const Color(0xFF00E676),
+                                        onChanged: (val) {
+                                          if (val != null) {
+                                            setState(() {
+                                              _selectedPaymentMethod = val;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -586,7 +864,11 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
-                        onTap: _isLoading ? null : () => _bookService(appState),
+                        onTap: _isLoading
+                            ? null
+                            : () => _selectedPaymentMethod == 'COD'
+                                ? _bookServiceWithCOD(appState)
+                                : _bookService(appState),
                         child: Center(
                           child: _isLoading
                               ? const SizedBox(
@@ -598,7 +880,9 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                   ),
                                 )
                               : Text(
-                                  'Pay & Book Now',
+                                  _selectedPaymentMethod == 'COD'
+                                      ? 'Confirm & Book Now'
+                                      : 'Pay & Book Now',
                                   style: GoogleFonts.outfit(
                                     color: const Color(0xFF0D0B18),
                                     fontSize: 18,
