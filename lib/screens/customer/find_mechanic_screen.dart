@@ -1214,9 +1214,17 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
       if (mounted) {
         setState(() {
           _mechanicServices = updatedServices;
-          // Only retain selected services that are offered by the mechanic
-          _selectedServices.retainWhere((selected) =>
-              updatedServices.any((offered) => offered.id == selected.id));
+          // Update the prices of selected services to match this mechanic's rates,
+          // and only retain services that this mechanic actually offers.
+          final List<ServiceItem> newlySelected = [];
+          for (final selected in _selectedServices) {
+            try {
+              final offered = updatedServices.firstWhere((offered) => offered.id == selected.id);
+              newlySelected.add(offered);
+            } catch (_) {}
+          }
+          _selectedServices.clear();
+          _selectedServices.addAll(newlySelected);
         });
       }
     });
