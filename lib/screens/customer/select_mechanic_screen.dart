@@ -39,6 +39,11 @@ class _SelectMechanicScreenState extends State<SelectMechanicScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    try {
+      context.read<AppState>().resetSelectionRatesToDefault();
+    } catch (e) {
+      debugPrint("Error resetting rates in SelectMechanicScreen dispose: $e");
+    }
     super.dispose();
   }
 
