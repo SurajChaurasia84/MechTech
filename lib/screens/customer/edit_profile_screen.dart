@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../../services/app_state.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final bool isForceEdit;
+  const EditProfileScreen({super.key, this.isForceEdit = false});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -74,26 +75,53 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       );
 
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0B18),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF161426),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+    final appState = context.watch<AppState>();
+    return PopScope(
+      canPop: !widget.isForceEdit,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && widget.isForceEdit) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Please enter your phone number to continue.',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0D0B18),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF161426),
+          elevation: 0,
+          leading: widget.isForceEdit
+              ? IconButton(
+                  icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                  onPressed: () async {
+                    await context.read<AppState>().logout();
+                  },
+                )
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+          automaticallyImplyLeading: !widget.isForceEdit,
+          title: Text(
+            widget.isForceEdit ? 'Complete Profile' : 'Edit Profile',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
+          ),
         ),
-        title: Text(
-          'Edit Profile',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
-        ),
-      ),
       body: Stack(
         children: [
           // Background soft glows for aesthetic depth
@@ -174,13 +202,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 24),
 
                     // Phone field
-                    _buildLabel('Phone Number (Optional)'),
+                    _buildLabel(appState.userRole == 'mechanic' ? 'Phone Number' : 'Phone Number'),
                     const SizedBox(height: 8),
                     _buildTextField(
                       controller: _phoneController,
                       hintText: 'Enter your phone number',
                       icon: Icons.phone_android_outlined,
                       keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (appState.userRole == 'mechanic') {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your phone number';
+                          }
+                          final phoneRegex = RegExp(r'^\+?[0-9]{10,15}$');
+                          if (!phoneRegex.hasMatch(value.trim())) {
+                            return 'Please enter a valid phone number';
+                          }
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 48),
 
@@ -232,6 +272,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
