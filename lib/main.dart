@@ -6,6 +6,7 @@ import 'package:media_store_plus/media_store_plus.dart';
 import 'services/app_state.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/customer_dashboard.dart';
+import 'screens/customer/edit_profile_screen.dart';
 import 'screens/mechanic/mechanic_dashboard.dart';
 
 void main() async {
@@ -79,6 +80,9 @@ class MainGate extends StatelessWidget {
 
     if (appState.user != null) {
       if (appState.userRole == 'mechanic') {
+        if (appState.currentCustomerPhone == null || appState.currentCustomerPhone!.trim().isEmpty) {
+          return const EditProfileScreen(isForceEdit: true);
+        }
         return const MechanicDashboard();
       } else {
         return const CustomerDashboard();
