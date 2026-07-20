@@ -265,14 +265,17 @@ class MechanicProfileTab extends StatelessWidget {
     Color titleColor = Colors.white,
     Color iconColor = const Color(0xFF8B88A5),
   }) {
-    return ListTile(
-      leading: Icon(icon, color: iconColor),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(color: titleColor, fontSize: 14, fontWeight: FontWeight.w500),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Icon(icon, color: iconColor),
+        title: Text(
+          title,
+          style: GoogleFonts.inter(color: titleColor, fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF535072)),
+        onTap: onTap,
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF535072)),
-      onTap: onTap,
     );
   }
 }
