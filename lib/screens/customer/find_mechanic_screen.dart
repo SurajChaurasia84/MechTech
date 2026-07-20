@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
-import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'widgets/vehicle_selection_sheet.dart';
 import '../../utils/location_helper.dart';
+import 'mechanic_profile_details_screen.dart';
 
 class FindMechanicScreen extends StatefulWidget {
   final String? initialFilter;
@@ -335,11 +335,41 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
     }
   }
 
+  static const Set<String> _knownMainCategories = {
+    'Periodic Services',
+    'Periodic Service',
+    'Spa & Detailing',
+    'Tyres & Wheel',
+    'Tyres & Wheel Care',
+    'Batteries',
+    'Battery Diagnostics',
+    'Brake & Suspension',
+    'Brake Check',
+    'Brakes',
+    'Brake Services',
+    'Clutch & Body',
+    'Clutch & Trans.',
+    'Motor Service',
+    'Lights & Mirror',
+    'Lights & Wiring',
+    'Denting & Paint',
+    'Custom Repair',
+    'Charging Fix',
+    'Car Inspection',
+    'Accessories',
+    'Insurance',
+    'Body Parts',
+    'Body Panels',
+    'Electrical',
+    'General Repair',
+  };
+
   List<String> _getCategoryChips() {
     final appState = context.read<AppState>();
     final customerModel = appState.selectedVehicleModel;
     final customerType = appState.selectedVehicleType;
     final Set<String> cats = {'All'};
+
     for (final mech in _mechanics) {
       final vehicleMatch = (mech['vehicleCategory'] as String? ?? 'car').toLowerCase() == _selectedVehicleCategory.toLowerCase();
       
@@ -356,8 +386,24 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
       }
 
       if (vehicleMatch && modelMatch) {
-        final mechCats = (mech['categories'] as List<dynamic>?)?.map((c) => c.toString()) ?? [];
-        cats.addAll(mechCats);
+        final specSubCats = Map<String, List<dynamic>>.from(mech['specializationSubCategories'] ?? {});
+        final mechCats = (mech['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+
+        for (final parentCat in specSubCats.keys) {
+          if (parentCat != 'All' && parentCat.isNotEmpty) {
+            cats.add(parentCat);
+          }
+        }
+
+        for (final c in mechCats) {
+          if (c != 'All' && c.isNotEmpty) {
+            final bool isMainCat = specSubCats.containsKey(c) ||
+                _knownMainCategories.any((k) => k.toLowerCase() == c.toLowerCase());
+            if (isMainCat) {
+              cats.add(c);
+            }
+          }
+        }
       }
     }
     return cats.toList();
@@ -384,8 +430,12 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
         }
       }
 
+      final specSubCats = Map<String, List<dynamic>>.from(mech['specializationSubCategories'] ?? {});
+      final mechCats = (mech['categories'] as List<dynamic>?)?.map((c) => c.toString()).toList() ?? [];
+
       final categoryMatch = _selectedCategory == 'All' ||
-          (mech['categories'] as List<String>).contains(_selectedCategory);
+          specSubCats.containsKey(_selectedCategory) ||
+          mechCats.contains(_selectedCategory);
       final nameMatch = _searchQuery.isEmpty ||
           (mech['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()) ||
           (mech['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
@@ -410,233 +460,39 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
         }
         final mechIndex = (!_isLocationServiceEnabled || !_isLocationPermissionGranted) ? index - 1 : index;
         final mech = filtered[mechIndex];
-        return _buildMechanicCard(mech);
+        final isLast = mechIndex == filtered.length - 1;
+        return _buildMechanicCard(mech, isLast: isLast);
       },
     );
-  }
-
-  String _getMechanicRateDisplay(Map<String, dynamic> mech, AppState appState) {
-    final specRates = Map<String, int>.from(mech['specializationRates'] ?? {});
-    
-    // 1. If we have a category selected that is not 'All'
-    if (_selectedCategory != 'All') {
-      final rate = specRates[_selectedCategory];
-      if (rate != null && rate > 0) {
-        return '₹$rate';
-      }
-    }
-    
-    // 2. If we have selected services in AppState
-    final selected = appState.selectedServices;
-    if (selected.isNotEmpty) {
-      double totalRate = 0;
-      bool allAvailable = true;
-      for (final service in selected) {
-        final rate = specRates[service.category] ?? specRates[service.name];
-        if (rate != null && rate > 0) {
-          totalRate += rate;
-        } else {
-          allAvailable = false;
-        }
-      }
-      if (allAvailable) {
-        return '₹${totalRate.toStringAsFixed(0)}';
-      } else {
-        return 'Not Available';
-      }
-    }
-    
-    // 3. Fallback: range from specializationRates
-    if (specRates.isNotEmpty) {
-      final values = specRates.values.where((v) => v > 0).toList();
-      if (values.isNotEmpty) {
-        values.sort();
-        if (values.first == values.last) {
-          return '₹${values.first}';
-        }
-        return '₹${values.first} - ₹${values.last}';
-      }
-    }
-    
-    return 'Not Available';
-  }
-
-  void _handleBookNow(Map<String, dynamic> mechanic) {
-    final appState = context.read<AppState>();
-    final currentUserId = appState.user?.uid;
-    final mechanicId = mechanic['mechanicId'] as String?;
-
-    if (mechanicId != null && mechanicId == currentUserId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("You cannot book your own service."),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-    
-    // In FindMechanicScreen (general search), always show the quick booking sheet
-    // to let the user select the services they want for this specific mechanic.
-    _showQuickBookingSheet(mechanic);
-  }
-
-  void _showQuickBookingSheet(Map<String, dynamic> mechanic) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          expand: true,
-          builder: (context, scrollController) {
-            return QuickBookingSheet(
-              mechanic: mechanic,
-              scrollController: scrollController,
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _handleMessageMechanic(Map<String, dynamic> mech) async {
-    final appState = context.read<AppState>();
-    final currentUserId = appState.user?.uid;
-    if (currentUserId == null) return;
-
-    final mechanicId = mech['mechanicId'];
-    if (mechanicId == null) return;
-
-    if (mechanicId == currentUserId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("You cannot message yourself."),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // Show loading spinner
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF00E676)),
-      ),
-    );
-
-    try {
-      // 1. Abuse Prevention: Query global bookings to check if any booking exists
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('bookings')
-          .where('customerId', isEqualTo: currentUserId)
-          .where('mechanicId', isEqualTo: mechanicId)
-          .limit(1)
-          .get();
-
-      // Dismiss loading spinner
-      if (mounted) Navigator.of(context).pop();
-
-      if (querySnapshot.docs.isEmpty) {
-        // No booking exists! Show error dialog
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF161426),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
-                ),
-                title: Text(
-                  'Messaging Blocked',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                content: Text(
-                  'To prevent spam and misuse, you can only message a mechanic once you have requested a service booking with them.',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF8B88A5),
-                    height: 1.4,
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Got it',
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF00E676),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-        return;
-      }
-
-      // 2. Booking exists! Resolve roomId deterministically
-      final roomId = currentUserId.compareTo(mechanicId) < 0
-          ? '${currentUserId}_$mechanicId'
-          : '${mechanicId}_$currentUserId';
-
-      // 3. Ensure the chat room document exists in Firestore (create if missing)
-      final chatDocRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
-      final chatDoc = await chatDocRef.get();
-      if (!chatDoc.exists) {
-        await chatDocRef.set({
-          'id': roomId,
-          'customerId': currentUserId,
-          'customerName': appState.currentCustomerName ?? 'Customer',
-          'customerPhotoUrl': appState.currentCustomerPhotoUrl ?? '',
-          'mechanicId': mechanicId,
-          'mechanicName': mech['name'] ?? 'Mechanic',
-          'mechanicPhotoUrl': mech['photo'] ?? '',
-          'lastMessage': '',
-          'lastSenderId': '',
-          'timestamp': FieldValue.serverTimestamp(),
-          'unreadByCustomer': false,
-          'unreadByMechanic': false,
-        });
-      }
-
-      // 4. Open Chat Detail Screen
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatDetailScreen(
-              roomId: roomId,
-              recipientId: mechanicId,
-              recipientName: mech['name'] ?? 'Mechanic',
-              recipientPhotoUrl: mech['photo'] ?? '',
-              recipientRole: 'Mechanic Specialist',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop(); // dismiss loading
-      debugPrint("Error checking/creating chat: $e");
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     context.watch<AppState>();
+
+    Widget? titleWidget;
+    if (_isSearching) {
+      titleWidget = TextField(
+        controller: _searchController,
+        autofocus: true,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+        decoration: InputDecoration(
+          hintText: 'Search mechanic by name...',
+          hintStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 16),
+          border: InputBorder.none,
+        ),
+        onChanged: (val) {
+          setState(() {
+            _searchQuery = val;
+          });
+        },
+      );
+    } else if (widget.initialFilter != null) {
+      titleWidget = Text(
+        widget.initialFilter!,
+        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -647,23 +503,7 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
-                decoration: InputDecoration(
-                  hintText: 'Search mechanic by name...',
-                  hintStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 16),
-                  border: InputBorder.none,
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                  });
-                },
-              )
-            : null,
+        title: titleWidget,
         actions: [
           if (!_isSearching)
             Consumer<AppState>(
@@ -737,401 +577,268 @@ class _FindMechanicScreenState extends State<FindMechanicScreen> with TickerProv
       ),
       body: _isLoadingMechanics
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E676)))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Screen Title
-                if (!_isSearching)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Find a\n',
-                            style: GoogleFonts.outfit(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              height: 1.1,
-                            ),
+          : (widget.initialFilter != null
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: _buildMechanicsList(_selectedVehicleCategory),
+                )
+              : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  // Screen Title
+                  if (!_isSearching)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'Find a\n',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  height: 1.1,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'Mechanic',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF00E676),
+                                ),
+                              ),
+                            ],
                           ),
-                          TextSpan(
-                            text: 'Mechanic',
-                            style: GoogleFonts.outfit(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF00E676),
-                            ),
-                          ),
-                        ],
+                        ),
+                      ),
+                    ),
+
+                  // Vehicle selection TabBar
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF161426),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicatorColor: const Color(0xFF00E676),
+                          indicatorWeight: 3,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                          unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14),
+                          labelColor: const Color(0xFF00E676),
+                          unselectedLabelColor: const Color(0xFF8B88A5),
+                          tabs: const [
+                            Tab(text: '🚗  Car'),
+                            Tab(text: '🏍  Bike'),
+                            Tab(text: '⚡  EV'),
+                          ],
+                        ),
                       ),
                     ),
                   ),
 
-                // Vehicle selection TabBar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF161426),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: const Color(0xFF00E676),
-                      indicatorWeight: 3,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
-                      unselectedLabelStyle: GoogleFonts.outfit(fontSize: 14),
-                      labelColor: const Color(0xFF00E676),
-                      unselectedLabelColor: const Color(0xFF8B88A5),
-                      tabs: const [
-                        Tab(text: '🚗  Car'),
-                        Tab(text: '🏍  Bike'),
-                        Tab(text: '⚡  EV'),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Categories Horizontal List
-                if (!_isSearching) ...[
-                  Builder(
-                    builder: (context) {
-                      final chips = _getCategoryChips();
-                      
-                      // Safety check: if _selectedCategory is not in chips, reset it to 'All'
-                      if (!chips.contains(_selectedCategory)) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            setState(() {
-                              _selectedCategory = 'All';
-                            });
-                          }
-                        });
-                      }
-
-                      return SizedBox(
-                        height: 40,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: chips.length,
-                          itemBuilder: (context, index) {
-                            final cat = chips[index];
-                            final isSelected = _selectedCategory == cat;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 10.0),
-                              child: ChoiceChip(
-                                label: Text(cat),
-                                selected: isSelected,
-                                selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
-                                disabledColor: const Color(0xFF161426),
-                                backgroundColor: const Color(0xFF161426),
-                                labelStyle: GoogleFonts.inter(
-                                  color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide(
-                                    color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
-                                    width: 1.2,
-                                  ),
-                                ),
-                                onSelected: (selected) {
+                  // Sticky Category Chips Row ("All" row)
+                  if (!_isSearching)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _SliverCategoryHeaderDelegate(
+                        height: 56.0,
+                        child: Builder(
+                          builder: (context) {
+                            final chips = _getCategoryChips();
+                            
+                            // Safety check: if _selectedCategory is not in chips, reset it to 'All'
+                            if (!chips.contains(_selectedCategory)) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) {
                                   setState(() {
-                                    _selectedCategory = cat;
+                                    _selectedCategory = 'All';
                                   });
+                                }
+                              });
+                            }
+
+                            return Container(
+                              color: const Color(0xFF0D0B18),
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                itemCount: chips.length,
+                                itemBuilder: (context, index) {
+                                  final cat = chips[index];
+                                  final isSelected = _selectedCategory == cat;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 10.0),
+                                    child: ChoiceChip(
+                                      label: Text(cat),
+                                      selected: isSelected,
+                                      selectedColor: const Color(0xFFFFB300), // Yellow-orange selected chip
+                                      disabledColor: const Color(0xFF161426),
+                                      backgroundColor: const Color(0xFF161426),
+                                      labelStyle: GoogleFonts.inter(
+                                        color: isSelected ? const Color(0xFF0D0B18) : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                        side: BorderSide(
+                                          color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF302B53),
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      onSelected: (selected) {
+                                        setState(() {
+                                          _selectedCategory = cat;
+                                        });
+                                      },
+                                    ),
+                                  );
                                 },
                               ),
                             );
                           },
                         ),
-                      );
-                    }
-                  ),
-                  const SizedBox(height: 16),
+                      ),
+                    ),
+                ];
+              },
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildMechanicsList('car'),
+                  _buildMechanicsList('bike'),
+                  _buildMechanicsList('ev'),
                 ],
-
-                // Mechanics Vertical List with TabBarView for swiping
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildMechanicsList('car'),
-                      _buildMechanicsList('bike'),
-                      _buildMechanicsList('ev'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            )),
     );
   }
 
-  Widget _buildMechanicCard(Map<String, dynamic> mech) {
-    final appState = context.read<AppState>();
+  Widget _buildMechanicCard(Map<String, dynamic> mech, {bool isLast = false}) {
+    final aLat = mech['latitude'] as double?;
+    final aLon = mech['longitude'] as double?;
+    String distanceStr = '';
+    if (_currentPosition != null && aLat != null && aLon != null) {
+      final distanceInMeters = Geolocator.distanceBetween(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+        aLat,
+        aLon,
+      );
+      if (distanceInMeters >= 1000) {
+        distanceStr = '${(distanceInMeters / 1000).toStringAsFixed(1)} km away';
+      } else {
+        distanceStr = '${distanceInMeters.toStringAsFixed(0)} m away';
+      }
+    }
+
+    var rawLoc = mech['location'] as String? ?? '';
+    if (rawLoc.startsWith('Works in ')) {
+      rawLoc = rawLoc.substring(9);
+    }
+    final locLabel = rawLoc.isNotEmpty
+        ? (distanceStr.isNotEmpty ? '$rawLoc • $distanceStr' : rawLoc)
+        : (distanceStr.isNotEmpty ? distanceStr : 'Location unknown');
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20.0),
-      child: Container(
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161426),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFF08693F).withValues(alpha: 0.4), // Premium green border glow
-            width: 1.5,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Mechanic Photo
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Image.network(
-                    mech['photo'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: const Color(0xFF0D0B18),
-                        child: const Icon(Icons.person, color: Color(0xFF00E676), size: 24),
-                      );
-                    },
-                  ),
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => MechanicProfileDetailsScreen(
+                  mechanic: mech,
+                  currentPosition: _currentPosition,
+                  initialCategory: widget.initialFilter,
                 ),
-                const SizedBox(width: 16),
-                // Info
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 14.0),
+            decoration: BoxDecoration(
+              border: isLast
+                  ? null
+                  : const Border(
+                      bottom: BorderSide(
+                        color: Color(0xFF302B53),
+                        width: 0.8,
+                      ),
+                    ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundImage: NetworkImage(mech['photo']),
+                  backgroundColor: const Color(0xFF161426),
+                  child: mech['photo'] == null
+                      ? const Icon(Icons.person, color: Color(0xFF00E676), size: 24)
+                      : null,
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name/Title row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              mech['title'] ?? mech['name'],
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.check_circle,
-                            color: Color(0xFF00E676),
-                            size: 16,
-                          ),
-                        ],
+                      Text(
+                        mech['title'] ?? 'Specialist Mechanic',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'by ${mech['name']} • ${mech['experience']}',
+                        'by ${mech['name'] ?? 'Mechanic'}',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                         style: GoogleFonts.inter(
-                          color: const Color(0xFF8B88A5),
+                          color: const Color(0xFF00E676),
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      // Rating & Rate Row
+                      const SizedBox(height: 6),
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00E676).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                          const Icon(Icons.location_on_outlined, color: Color(0xFF8B88A5), size: 14),
+                          const SizedBox(width: 4),
+                          Expanded(
                             child: Text(
-                              _getMechanicRateDisplay(mech, appState),
-                              style: GoogleFonts.outfit(
-                                color: const Color(0xFF00E676),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                              locLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF8B88A5),
+                                fontSize: 12,
                               ),
                             ),
-                          ),
-                          Builder(
-                            builder: (context) {
-                              final aLat = mech['latitude'] as double?;
-                              final aLon = mech['longitude'] as double?;
-                              if (_currentPosition != null && aLat != null && aLon != null) {
-                                final distanceInMeters = Geolocator.distanceBetween(
-                                  _currentPosition!.latitude,
-                                  _currentPosition!.longitude,
-                                  aLat,
-                                  aLon,
-                                );
-                                String distanceStr = '';
-                                if (distanceInMeters >= 1000) {
-                                  distanceStr = '${(distanceInMeters / 1000).toStringAsFixed(1)} km away';
-                                } else {
-                                  distanceStr = '${distanceInMeters.toStringAsFixed(0)} m away';
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.only(left: 8.0),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00B0FF).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      distanceStr,
-                                      style: GoogleFonts.outfit(
-                                        color: const Color(0xFF00B0FF),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            },
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFF535072), size: 22),
               ],
             ),
-            const SizedBox(height: 12),
-            // Location
-            Row(
-              children: [
-                const Icon(Icons.home_outlined, color: Color(0xFF8B88A5), size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  mech['location'],
-                  style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Quote description
-            Text(
-              mech['desc'],
-              style: GoogleFonts.inter(
-                color: const Color(0xFF8B88A5).withValues(alpha: 0.8),
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Categories & Tags Wrap
-            Builder(
-              builder: (context) {
-                final cats = (mech['categories'] as List<dynamic>?)?.map((e) => e.toString()).where((c) => c != 'All').toList() ?? [];
-                if (cats.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4.0),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ...cats.map((cat) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF08693F).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFF00E676).withValues(alpha: 0.6),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              cat,
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF00E676),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          )),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 42,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF302B53)),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _handleMessageMechanic(mech),
-                        child: Center(
-                          child: Text(
-                            'Message',
-                            style: GoogleFonts.outfit(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 42,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: const Color(0xFF161426),
-                      border: Border.all(color: const Color(0xFF00E676), width: 1.2),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _handleBookNow(mech),
-                        child: Center(
-                          child: Text(
-                            'Book Now',
-                            style: GoogleFonts.outfit(
-                              color: const Color(0xFF00E676),
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1401,34 +1108,37 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                   ..._mechanicServices.map((s) {
                     final isAvailable = s.price > 0;
                     final isSelected = _selectedServices.contains(s);
-                    return CheckboxListTile(
-                      title: Text(
-                        s.name, 
-                        style: GoogleFonts.inter(
-                          color: isAvailable ? Colors.white : Colors.white.withOpacity(0.4), 
-                          fontSize: 14
-                        )
+                    return Material(
+                      color: Colors.transparent,
+                      child: CheckboxListTile(
+                        title: Text(
+                          s.name, 
+                          style: GoogleFonts.inter(
+                            color: isAvailable ? Colors.white : Colors.white.withValues(alpha: 0.4), 
+                            fontSize: 14
+                          )
+                        ),
+                        subtitle: Text(
+                          isAvailable ? '₹${s.price.toStringAsFixed(0)}' : 'Not Available', 
+                          style: GoogleFonts.inter(
+                            color: isAvailable ? const Color(0xFF00E676) : Colors.redAccent,
+                            fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
+                          )
+                        ),
+                        value: isAvailable ? isSelected : false,
+                        activeColor: const Color(0xFF00E676),
+                        onChanged: isAvailable 
+                            ? (checked) {
+                                setState(() {
+                                  if (checked == true) {
+                                    _selectedServices.add(s);
+                                  } else {
+                                    _selectedServices.remove(s);
+                                  }
+                                });
+                              }
+                            : null,
                       ),
-                      subtitle: Text(
-                        isAvailable ? '₹${s.price.toStringAsFixed(0)}' : 'Not Available', 
-                        style: GoogleFonts.inter(
-                          color: isAvailable ? const Color(0xFF00E676) : Colors.redAccent,
-                          fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
-                        )
-                      ),
-                      value: isAvailable ? isSelected : false,
-                      activeColor: const Color(0xFF00E676),
-                      onChanged: isAvailable 
-                          ? (checked) {
-                              setState(() {
-                                if (checked == true) {
-                                  _selectedServices.add(s);
-                                } else {
-                                  _selectedServices.remove(s);
-                                }
-                              });
-                            }
-                          : null,
                     );
                   }),
               ],
@@ -1553,5 +1263,31 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
         ),
       ),
     );
+  }
+}
+
+class _SliverCategoryHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+
+  _SliverCategoryHeaderDelegate({required this.child, this.height = 56.0});
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: const Color(0xFF0D0B18),
+      child: child,
+    );
+  }
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  double get minExtent => height;
+
+  @override
+  bool shouldRebuild(covariant _SliverCategoryHeaderDelegate oldDelegate) {
+    return true;
   }
 }
