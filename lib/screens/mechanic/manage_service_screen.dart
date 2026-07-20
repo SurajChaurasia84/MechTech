@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -13,16 +14,20 @@ import '../../utils/location_helper.dart';
 class SubCategoryItem {
   final TextEditingController nameController;
   final TextEditingController priceController;
+  final TextEditingController descController;
 
   SubCategoryItem({
     required String name,
     required String price,
+    String description = '',
   })  : nameController = TextEditingController(text: name),
-        priceController = TextEditingController(text: price);
+        priceController = TextEditingController(text: price),
+        descController = TextEditingController(text: description);
 
   void dispose() {
     nameController.dispose();
     priceController.dispose();
+    descController.dispose();
   }
 }
 
@@ -100,6 +105,278 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       'Charging Fix',
       'Accessories',
     ],
+  };
+
+  final Map<String, Map<String, List<Map<String, String>>>> _vehiclePresetSubCategories = const {
+    'car': {
+      'Periodic Services': [
+        {
+          'name': 'Basic Service',
+          'desc': 'Engine oil replacement, oil filter replacement, air filter cleaning, Coolant top up, Spark plug checking'
+        },
+        {
+          'name': 'Standard Service',
+          'desc': 'engine oil replacement, oil filter replacement, air filter replacement, Coolant topup, Heater/Spark plug checking, brake fluid topup. and more'
+        },
+        {
+          'name': 'Comprehensive Service',
+          'desc': 'engine oil replacement, oil filter replacement, air filter replacement, Coolant topup, Heater/Spark plug checking, brake fluid topup, throttle body cleaning, gear oil topup, Wash and more.'
+        },
+      ],
+      'Spa & Detailing': [
+        {
+          'name': 'Premium top wash',
+          'desc': 'Exterior top wash, Rinsing, tyre wash, Hand drying'
+        },
+        {
+          'name': 'Deep all round Spa',
+          'desc': 'interior Vacuum cleaning, dashboard polish, interior wet detailing, Pressure car wash, rubbing with compound, wax polish, machine rubbing, tyre dressing, Alloy polish'
+        },
+        {
+          'name': 'Car wash & wax',
+          'desc': 'Car wash, Interior Vacuuming, Dashboard & tyre polish, Body wax.'
+        },
+      ],
+      'Tyres & Wheel': [
+        {'name': 'Puncture repair', 'desc': ''},
+        {'name': 'Tyre Replacement', 'desc': ''},
+        {'name': 'Tube replacement', 'desc': ''},
+        {'name': 'Wheel balancing', 'desc': ''},
+        {'name': 'Wheel Alignment', 'desc': ''},
+      ],
+      'Tyres & Wheel Care': [
+        {'name': 'Puncture repair', 'desc': ''},
+        {'name': 'Tyre Replacement', 'desc': ''},
+        {'name': 'Tube replacement', 'desc': ''},
+        {'name': 'Wheel balancing', 'desc': ''},
+        {'name': 'Wheel Alignment', 'desc': ''},
+      ],
+      'Batteries': [
+        {'name': 'Battery replacement', 'desc': ''},
+        {'name': 'Battery Charging issue', 'desc': ''},
+        {'name': 'Battery jump start', 'desc': ''},
+        {'name': 'Battery Health check', 'desc': ''},
+      ],
+      'Brake & Suspension': [
+        {'name': 'Front brake pad replacement', 'desc': ''},
+        {'name': 'Rear brake-shoe replacement', 'desc': ''},
+        {'name': 'Front brake disk replacement', 'desc': ''},
+        {'name': 'Caliper pin replacement', 'desc': ''},
+        {'name': 'ABS issue diagnosis', 'desc': ''},
+        {'name': 'Shock absorber replacement', 'desc': ''},
+        {'name': 'Suspension repair', 'desc': ''},
+        {'name': 'Steering repair', 'desc': ''},
+      ],
+      'Clutch & Body': [
+        {'name': 'Clutch plate replacement', 'desc': ''},
+        {'name': 'Clutch Set replacement', 'desc': ''},
+        {'name': 'Flywheel replacement', 'desc': ''},
+        {'name': 'Clutch Cable Replacement', 'desc': ''},
+        {'name': 'Front bumper replacement', 'desc': ''},
+        {'name': 'Rear bumper replacement', 'desc': ''},
+        {'name': 'Bonnet replacement', 'desc': ''},
+      ],
+      'Lights & Mirror': [
+        {'name': 'Front Headlight Replacement', 'desc': ''},
+        {'name': 'Rear taillight Replacement', 'desc': ''},
+        {'name': 'Fog light', 'desc': ''},
+        {'name': 'Side mirror', 'desc': ''},
+      ],
+      'Denting & Paint': [
+        {'name': 'Front bumper paint', 'desc': ''},
+        {'name': 'Bonnet paint', 'desc': ''},
+        {'name': 'Rear bumper paint', 'desc': ''},
+        {'name': 'Boot paint', 'desc': ''},
+        {'name': 'Full body denting paint', 'desc': ''},
+        {'name': 'Fender paint', 'desc': ''},
+        {'name': 'Door paint', 'desc': ''},
+      ],
+      'Custom Repair': [
+        {'name': 'Full Engine Diagnosis', 'desc': ''},
+        {'name': 'Engine overall Maintenance', 'desc': ''},
+        {'name': 'Engine mount Replacement', 'desc': ''},
+        {'name': 'Radiator Replacement', 'desc': ''},
+        {'name': 'Fuel pump Replacement', 'desc': ''},
+        {'name': 'Wheel bearing Replacement', 'desc': ''},
+        {'name': 'Timing Chain Replacement', 'desc': ''},
+        {'name': 'Silencer Replacement', 'desc': ''},
+        {'name': 'Bonnet lock Replacement', 'desc': ''},
+      ],
+      'Car Inspection': [
+        {'name': 'General Health Check', 'desc': ''},
+        {'name': 'Pre-purchase inspection', 'desc': ''},
+        {'name': 'Long journey inspection', 'desc': ''},
+        {'name': 'Used car inspection', 'desc': ''},
+      ],
+      'Insurance': [
+        {'name': 'Insurance Claim Assistance', 'desc': ''},
+        {'name': 'Claim Documentation Support', 'desc': ''},
+        {'name': 'Accident Claim Processing', 'desc': ''},
+      ],
+      'Electrical': [
+        {'name': 'Alternator Replacement', 'desc': ''},
+        {'name': 'Starter motor Replacement', 'desc': ''},
+        {'name': 'Wiring Replacement [Full]', 'desc': ''},
+        {'name': 'Horn Replacement', 'desc': ''},
+        {'name': 'Headlight bulb Replacement', 'desc': ''},
+        {'name': 'Headlight Assembly Replacement', 'desc': ''},
+        {'name': 'Tail Light Replacement', 'desc': ''},
+        {'name': 'Reverse Camera Installment', 'desc': ''},
+        {'name': 'Speaker Replacement', 'desc': ''},
+      ],
+    },
+    'bike': {
+      'Periodic Services': [
+        {
+          'name': 'Basic Service',
+          'desc': 'engine oil change, chain lubrication, brake check, tyre pressure check and 3 more.'
+        },
+        {
+          'name': 'Standard Service',
+          'desc': 'Basic Service +, Air filter clean + clutch & brake adjustment + Washing'
+        },
+        {
+          'name': 'Comprehensive Service',
+          'desc': 'engine oil change, chain lubrication, brake shoe change, Air filter change, Oil filter change, clutch & brake adjustment, Washing and 6 more.'
+        },
+      ],
+      'Spa & Detailing': [
+        {
+          'name': 'Bike Wash',
+          'desc': 'Exterior pressure wash and cleaning'
+        },
+        {
+          'name': 'Foam Wash',
+          'desc': 'Exterior wash + Foam wash'
+        },
+        {
+          'name': 'Full Bike Detailing',
+          'desc': 'Full wash + Polish + Coating + alloy cleaning.'
+        },
+      ],
+      'Tyres & Wheel Care': [
+        {'name': 'Puncher Repair', 'desc': ''},
+        {'name': 'Tube Replacement', 'desc': ''},
+        {'name': 'Tyre Replacement', 'desc': ''},
+        {'name': 'Wheel Balancing', 'desc': ''},
+      ],
+      'Tyres & Wheel': [
+        {'name': 'Puncher Repair', 'desc': ''},
+        {'name': 'Tube Replacement', 'desc': ''},
+        {'name': 'Tyre Replacement', 'desc': ''},
+        {'name': 'Wheel Balancing', 'desc': ''},
+      ],
+      'Batteries': [
+        {'name': 'Battery Replacement', 'desc': ''},
+        {'name': 'Jump Start', 'desc': ''},
+      ],
+      'Brake & Suspension': [
+        {'name': 'Front Brake Shoe Replacement', 'desc': ''},
+        {'name': 'Rear Brake Shoe Replacement', 'desc': ''},
+        {'name': 'Brake Pad Replacement', 'desc': ''},
+      ],
+      'Clutch & Trans.': [
+        {'name': 'Clutch Plate Replacement', 'desc': ''},
+        {'name': 'Clutch Cable Replacement', 'desc': ''},
+        {'name': 'Chain Sprocket Replacement', 'desc': ''},
+      ],
+      'Lights & Mirror': [
+        {'name': 'Head Light Replacement', 'desc': ''},
+        {'name': 'Tail Light Replacement', 'desc': ''},
+        {'name': 'Indicator Replacement', 'desc': ''},
+        {'name': 'Left Mirror Replacement', 'desc': ''},
+        {'name': 'Right Mirror Replacement', 'desc': ''},
+      ],
+      'Body Parts': [
+        {'name': 'Mudguard Replacement', 'desc': ''},
+        {'name': 'Side Panel Replacement', 'desc': ''},
+        {'name': 'Footrest Replacement', 'desc': ''},
+        {'name': 'Seat Replacement', 'desc': ''},
+      ],
+      'Electrical': [
+        {'name': 'Wiring Replacement', 'desc': ''},
+        {'name': 'Starter Motor Replacement', 'desc': ''},
+        {'name': 'Ignition Switch Replacement', 'desc': ''},
+        {'name': 'Main Switch Replacement', 'desc': ''},
+      ],
+      'Engine Repair': [
+        {'name': 'Engine Rebuild (Complete)', 'desc': ''},
+        {'name': 'Carburetor Cleaning', 'desc': ''},
+      ],
+      'Custom Repair': [
+        {'name': 'Smoke from Exhaust', 'desc': ''},
+        {'name': 'Pick up Issue', 'desc': ''},
+        {'name': 'Engine Making Noise', 'desc': ''},
+        {'name': 'Fuel Leakage', 'desc': ''},
+        {'name': 'Visor Noise', 'desc': ''},
+      ],
+    },
+    'ev': {
+      'Periodic Services': [
+        {
+          'name': 'Basic EV Service',
+          'desc': 'general inspection & cleaning of EV'
+        },
+        {
+          'name': 'Standard EV Service',
+          'desc': 'Basic service, Brake, tyre and electrical inspection'
+        },
+        {
+          'name': 'Comprehensive EV Service',
+          'desc': 'complet inspection of battery, motor, Controller, charging system'
+        },
+      ],
+      'Tyres & Wheel Care': [
+        {'name': 'Puncture Repair', 'desc': ''},
+        {'name': 'Tyre Replacement', 'desc': ''},
+        {'name': 'Wheel balancing', 'desc': ''},
+        {'name': 'Wheel Alignment', 'desc': ''},
+      ],
+      'Battery Diagnostics': [
+        {'name': 'Battery Health check', 'desc': ''},
+        {'name': 'Battery Diagnostics', 'desc': ''},
+        {'name': 'Battery Balancing', 'desc': ''},
+        {'name': 'Battery Replacement', 'desc': ''},
+      ],
+      'Brake Check': [
+        {'name': 'Brake Pad Replacement', 'desc': ''},
+        {'name': 'Brake Disc Replacement', 'desc': ''},
+        {'name': 'Brake fluid Replacement', 'desc': ''},
+      ],
+      'Motor Service': [
+        {'name': 'Motor Diagnosis', 'desc': ''},
+        {'name': 'Motor Cleaning', 'desc': ''},
+        {'name': 'Motor Bearing Replacement', 'desc': ''},
+        {'name': 'Motor Replacement', 'desc': ''},
+      ],
+      'Lights & Wiring': [
+        {'name': 'Headlight Replacement', 'desc': ''},
+        {'name': 'Tail light Replacement', 'desc': ''},
+        {'name': 'Indicator Replacement', 'desc': ''},
+        {'name': 'Full wiring Replacement', 'desc': ''},
+        {'name': 'All Fuse Replacement', 'desc': ''},
+      ],
+      'Body Panels': [
+        {'name': 'Front panel Replacement', 'desc': ''},
+        {'name': 'Side panel Replacement', 'desc': ''},
+        {'name': 'Rear panel Replacement', 'desc': ''},
+        {'name': 'Mudguard Replacement', 'desc': ''},
+        {'name': 'Mirror Replacement', 'desc': ''},
+      ],
+      'Charging Fix': [
+        {'name': 'Charging Port Repair', 'desc': ''},
+        {'name': 'Charging Issue', 'desc': ''},
+        {'name': 'Charging Connector Replacement', 'desc': ''},
+        {'name': 'Charger Diagnosis', 'desc': ''},
+        {'name': 'Home Charger Installation', 'desc': ''},
+      ],
+      'Accessories': [
+        {'name': 'Mobile holder installation', 'desc': ''},
+        {'name': 'GPS installation', 'desc': ''},
+        {'name': 'Security alarm installation', 'desc': ''},
+        {'name': 'Footrest installation', 'desc': ''},
+      ],
+    },
   };
 
   final List<String> _selectedCategories = [];
@@ -191,7 +468,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
           for (final subMap in subList) {
             final sName = subMap['name']?.toString() ?? '';
             final sPrice = subMap['price']?.toString() ?? '';
-            items.add(SubCategoryItem(name: sName, price: sPrice));
+            final sDesc = subMap['desc']?.toString() ?? subMap['description']?.toString() ?? '';
+            items.add(SubCategoryItem(name: sName, price: sPrice, description: sDesc));
           }
 
           if (predefined.contains(catName)) {
@@ -206,8 +484,14 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
           }
         });
       } else if (post.specializationRates.isNotEmpty) {
+        final vehicleMap = _vehiclePresetSubCategories[post.vehicleCategory] ?? _vehiclePresetSubCategories['car']!;
         post.specializationRates.forEach((catName, rate) {
-          final item = SubCategoryItem(name: catName, price: rate.toString());
+          final sDesc = vehicleMap[catName]?.firstWhere(
+                (p) => p['name'] == catName,
+                orElse: () => {},
+              )['desc'] ??
+              '';
+          final item = SubCategoryItem(name: catName, price: rate.toString(), description: sDesc);
           if (predefined.contains(catName)) {
             _selectedCategories.add(catName);
             _subCategoriesMap[catName] = [item];
@@ -408,6 +692,21 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     }
   }
 
+  List<SubCategoryItem> _initializeSubCategoriesForCategory(String cat) {
+    final vehicleMap = _vehiclePresetSubCategories[_selectedCategory] ?? _vehiclePresetSubCategories['car']!;
+    final presets = vehicleMap[cat] ?? [];
+    if (presets.isNotEmpty) {
+      return presets
+          .map((p) => SubCategoryItem(
+                name: p['name'] ?? '',
+                price: '',
+                description: p['desc'] ?? '',
+              ))
+          .toList();
+    }
+    return [SubCategoryItem(name: '', price: '', description: '')];
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -428,101 +727,62 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         : _selectedModel;
 
     // Validation for sub-categories
-    bool hasValidSub = false;
+    final appState = context.read<AppState>();
+    final uid = appState.user?.uid;
+    if (uid == null) return;
 
-    for (final cat in _selectedCategories) {
-      final subs = _subCategoriesMap[cat] ?? [];
-      if (subs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please add at least one sub-category under "$cat"'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+    final Map<String, List<Map<String, dynamic>>> subCategoriesData = {};
+    final Map<String, int> ratesMap = {};
+    final List<String> allCategories = [];
+
+    _subCategoriesMap.forEach((cat, subs) {
+      final validSubsList = <Map<String, dynamic>>[];
       for (final sub in subs) {
-        final name = sub.nameController.text.trim();
-        final price = sub.priceController.text.trim();
-        if (name.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please enter sub-category name under "$cat"'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
+        final sName = sub.nameController.text.trim();
+        final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
+        if (sName.isNotEmpty && sPrice > 0) {
+          validSubsList.add({
+            'name': sName,
+            'price': sPrice,
+            'desc': sub.descController.text.trim(),
+          });
+          ratesMap[sName] = sPrice;
+          if (!allCategories.contains(sName)) allCategories.add(sName);
         }
-        if (price.isEmpty || int.tryParse(price) == null || int.parse(price) <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please enter a valid charge for "$name" under "$cat"'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        hasValidSub = true;
       }
-    }
+      if (validSubsList.isNotEmpty) {
+        subCategoriesData[cat] = validSubsList;
+        if (!allCategories.contains(cat)) allCategories.add(cat);
+      }
+    });
 
     for (final customSec in _customCategorySections) {
       final catName = (customSec['name'] as TextEditingController).text.trim();
-      if (catName.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter category name for all custom categories'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
       final subs = customSec['subs'] as List<SubCategoryItem>;
-      if (subs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please add at least one sub-category under custom category "$catName"'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+      final validSubsList = <Map<String, dynamic>>[];
       for (final sub in subs) {
-        final name = sub.nameController.text.trim();
-        final price = sub.priceController.text.trim();
-        if (name.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please enter sub-category name under "$catName"'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
+        final sName = sub.nameController.text.trim();
+        final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
+        if (sName.isNotEmpty && sPrice > 0) {
+          validSubsList.add({
+            'name': sName,
+            'price': sPrice,
+            'desc': sub.descController.text.trim(),
+          });
+          ratesMap[sName] = sPrice;
+          if (!allCategories.contains(sName)) allCategories.add(sName);
         }
-        if (price.isEmpty || int.tryParse(price) == null || int.parse(price) <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please enter a valid charge for "$name" under "$catName"'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-        hasValidSub = true;
+      }
+      if (validSubsList.isNotEmpty && catName.isNotEmpty) {
+        subCategoriesData[catName] = validSubsList;
+        if (!allCategories.contains(catName)) allCategories.add(catName);
       }
     }
 
-    if (!hasValidSub) {
+    if (subCategoriesData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select at least one service category and add sub-categories with pricing'),
+          content: Text('Please enter a valid rate (> 0) for at least one sub-service to save post'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -530,63 +790,12 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       return;
     }
 
-    final appState = context.read<AppState>();
-    final uid = appState.user?.uid;
-    if (uid == null) return;
-
     setState(() => _isLoading = true);
 
     try {
       final expStr = '${_expController.text.trim()} years of experience';
       final bioStr = '"${_bioController.text.trim()}"';
       final locStr = _locationController.text.trim();
-
-      final Map<String, List<Map<String, dynamic>>> subCategoriesData = {};
-      final Map<String, int> ratesMap = {};
-      final List<String> allCategories = [];
-
-      for (final cat in _selectedCategories) {
-        final subs = _subCategoriesMap[cat] ?? [];
-        final validSubsList = <Map<String, dynamic>>[];
-        for (final sub in subs) {
-          final sName = sub.nameController.text.trim();
-          final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
-          if (sName.isNotEmpty && sPrice > 0) {
-            validSubsList.add({
-              'name': sName,
-              'price': sPrice,
-            });
-            ratesMap[sName] = sPrice;
-            if (!allCategories.contains(sName)) allCategories.add(sName);
-          }
-        }
-        if (validSubsList.isNotEmpty) {
-          subCategoriesData[cat] = validSubsList;
-          if (!allCategories.contains(cat)) allCategories.add(cat);
-        }
-      }
-
-      for (final customSec in _customCategorySections) {
-        final catName = (customSec['name'] as TextEditingController).text.trim();
-        final subs = customSec['subs'] as List<SubCategoryItem>;
-        final validSubsList = <Map<String, dynamic>>[];
-        for (final sub in subs) {
-          final sName = sub.nameController.text.trim();
-          final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
-          if (sName.isNotEmpty && sPrice > 0) {
-            validSubsList.add({
-              'name': sName,
-              'price': sPrice,
-            });
-            ratesMap[sName] = sPrice;
-            if (!allCategories.contains(sName)) allCategories.add(sName);
-          }
-        }
-        if (validSubsList.isNotEmpty && catName.isNotEmpty) {
-          subCategoriesData[catName] = validSubsList;
-          if (!allCategories.contains(catName)) allCategories.add(catName);
-        }
-      }
 
       final postId = widget.existingPost?.id ?? 'JP-${DateTime.now().millisecondsSinceEpoch}';
 
@@ -624,7 +833,9 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
       }
     } catch (e) {
       debugPrint("Error saving service profile: $e");
@@ -655,7 +866,11 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
         ),
       ),
       body: _isLoading
@@ -663,7 +878,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -695,7 +910,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                     // Bio/Description
                     _buildTextField(
                       controller: _bioController,
-                      label: 'About Me / Biography Quote',
+                      label: 'About You',
                       hint: 'Describe your expertise and service quality...',
                       maxLines: 3,
                       textCapitalization: TextCapitalization.sentences,
@@ -922,21 +1137,18 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF161426),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF302B53)),
-                      ),
-                      child: Column(
-                        children: [
+                    Column(
+                      children: [
                           ...(_categorySpecializations[_selectedCategory] ?? []).asMap().entries.map((entry) {
                             final index = entry.key;
                             final cat = entry.value;
-                            final isSelected = _selectedCategories.contains(cat);
-                            final isExpanded = _expandedCategories.contains(cat);
                             final subItems = _subCategoriesMap[cat] ?? [];
+                            final validSubItemsCount = subItems.where((sub) {
+                              final p = int.tryParse(sub.priceController.text.trim()) ?? 0;
+                              return sub.nameController.text.trim().isNotEmpty && p > 0;
+                            }).length;
+                            final isSelected = validSubItemsCount > 0;
+                            final isExpanded = _expandedCategories.contains(cat);
                             final specs = (_categorySpecializations[_selectedCategory] ?? []);
                             final isLast = index == specs.length - 1 && _customCategorySections.isEmpty;
 
@@ -949,40 +1161,27 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                         _expandedCategories.remove(cat);
                                       } else {
                                         _expandedCategories.add(cat);
-                                        if (!isSelected) {
-                                          _selectedCategories.add(cat);
-                                        }
                                         if (_subCategoriesMap[cat] == null || _subCategoriesMap[cat]!.isEmpty) {
-                                          _subCategoriesMap[cat] = [
-                                            SubCategoryItem(name: '', price: '')
-                                          ];
+                                          _subCategoriesMap[cat] = _initializeSubCategoriesForCategory(cat);
                                         }
                                       }
                                     });
                                   },
                                   borderRadius: BorderRadius.circular(16),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
                                     child: Row(
                                       children: [
                                         // Checkbox / Select Button
                                         GestureDetector(
                                           onTap: () {
                                             setState(() {
-                                              if (isSelected) {
-                                                _selectedCategories.remove(cat);
+                                              if (isExpanded) {
                                                 _expandedCategories.remove(cat);
-                                                final list = _subCategoriesMap.remove(cat);
-                                                if (list != null) {
-                                                  for (final item in list) item.dispose();
-                                                }
                                               } else {
-                                                _selectedCategories.add(cat);
                                                 _expandedCategories.add(cat);
                                                 if (_subCategoriesMap[cat] == null || _subCategoriesMap[cat]!.isEmpty) {
-                                                  _subCategoriesMap[cat] = [
-                                                    SubCategoryItem(name: '', price: '')
-                                                  ];
+                                                  _subCategoriesMap[cat] = _initializeSubCategoriesForCategory(cat);
                                                 }
                                               }
                                             });
@@ -1016,7 +1215,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                           ),
                                         ),
                                         // Count Badge
-                                        if (subItems.isNotEmpty) ...[
+                                        if (validSubItemsCount > 0) ...[
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
@@ -1025,7 +1224,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                               border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.4)),
                                             ),
                                             child: Text(
-                                              '${subItems.length} sub-service${subItems.length == 1 ? '' : 's'}',
+                                              '$validSubItemsCount sub-service${validSubItemsCount == 1 ? '' : 's'}',
                                               style: GoogleFonts.inter(
                                                 color: const Color(0xFF00E676),
                                                 fontSize: 11,
@@ -1049,7 +1248,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                 if (isExpanded)
                                   Container(
                                     width: double.infinity,
-                                    margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                                    margin: const EdgeInsets.only(top: 4, bottom: 12),
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF0D0B18),
@@ -1069,123 +1268,110 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                         ),
                                         const SizedBox(height: 10),
                                         ...subItems.asMap().entries.map((subEntry) {
-                                          final sIdx = subEntry.key;
                                           final sub = subEntry.value;
                                           return Padding(
-                                            padding: const EdgeInsets.only(bottom: 8.0),
-                                            child: Row(
+                                            padding: const EdgeInsets.only(bottom: 10.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                // Remove Sub-category button
-                                                GestureDetector(
-                                                  onTap: () {
-                                                    setState(() {
-                                                      sub.dispose();
-                                                      subItems.removeAt(sIdx);
-                                                      if (subItems.isEmpty) {
-                                                        _selectedCategories.remove(cat);
-                                                        _expandedCategories.remove(cat);
-                                                        _subCategoriesMap.remove(cat);
-                                                      }
-                                                    });
-                                                  },
-                                                  child: Container(
-                                                    width: 24,
-                                                    height: 24,
-                                                    decoration: BoxDecoration(
-                                                      shape: BoxShape.circle,
-                                                      color: const Color(0xFF2A1A2E),
-                                                      border: Border.all(
-                                                        color: Colors.redAccent.withValues(alpha: 0.6),
-                                                        width: 1.2,
+                                                Row(
+                                                  children: [
+                                                    // Sub-category Name Field
+                                                    Expanded(
+                                                      child: SizedBox(
+                                                        height: 38,
+                                                        child: TextField(
+                                                          controller: sub.nameController,
+                                                          textCapitalization: TextCapitalization.words,
+                                                          style: GoogleFonts.inter(
+                                                            color: Colors.white,
+                                                            fontSize: 13,
+                                                          ),
+                                                          decoration: InputDecoration(
+                                                            hintText: 'e.g. Side Mirror / Oil Change',
+                                                            hintStyle: GoogleFonts.inter(
+                                                              color: const Color(0xFF535072),
+                                                              fontSize: 12,
+                                                            ),
+                                                            contentPadding: const EdgeInsets.symmetric(
+                                                              horizontal: 10,
+                                                              vertical: 8,
+                                                            ),
+                                                            filled: true,
+                                                            fillColor: const Color(0xFF161426),
+                                                            border: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(10),
+                                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                            ),
+                                                            enabledBorder: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(10),
+                                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                            ),
+                                                            focusedBorder: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(10),
+                                                              borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                                            ),
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
-                                                    child: const Icon(
-                                                      Icons.close,
-                                                      size: 13,
-                                                      color: Colors.redAccent,
+                                                    const SizedBox(width: 8),
+                                                    // Sub-category Price Field
+                                                    SizedBox(
+                                                      width: 95,
+                                                      height: 38,
+                                                      child: TextField(
+                                                        controller: sub.priceController,
+                                                        keyboardType: TextInputType.number,
+                                                        onChanged: (_) => setState(() {}),
+                                                        style: GoogleFonts.inter(
+                                                          color: Colors.white,
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                        decoration: InputDecoration(
+                                                          hintText: '₹ Charge',
+                                                          hintStyle: GoogleFonts.inter(
+                                                            color: const Color(0xFF535072),
+                                                            fontSize: 12,
+                                                          ),
+                                                          contentPadding: const EdgeInsets.symmetric(
+                                                            horizontal: 10,
+                                                            vertical: 8,
+                                                          ),
+                                                          filled: true,
+                                                          fillColor: const Color(0xFF161426),
+                                                          border: OutlineInputBorder(
+                                                            borderRadius: BorderRadius.circular(10),
+                                                            borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                          ),
+                                                          enabledBorder: OutlineInputBorder(
+                                                            borderRadius: BorderRadius.circular(10),
+                                                            borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                          ),
+                                                          focusedBorder: OutlineInputBorder(
+                                                            borderRadius: BorderRadius.circular(10),
+                                                            borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                                          ),
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 10),
-                                                // Sub-category Name Field
-                                                Expanded(
-                                                  child: SizedBox(
-                                                    height: 38,
-                                                    child: TextField(
-                                                      controller: sub.nameController,
-                                                      textCapitalization: TextCapitalization.words,
+                                                if (sub.descController.text.isNotEmpty) ...[
+                                                  const SizedBox(height: 4),
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(left: 4.0, right: 8.0),
+                                                    child: Text(
+                                                      '- ${sub.descController.text}',
                                                       style: GoogleFonts.inter(
-                                                        color: Colors.white,
-                                                        fontSize: 13,
-                                                      ),
-                                                      decoration: InputDecoration(
-                                                        hintText: 'e.g. Side Mirror / Oil Change',
-                                                        hintStyle: GoogleFonts.inter(
-                                                          color: const Color(0xFF535072),
-                                                          fontSize: 12,
-                                                        ),
-                                                        contentPadding: const EdgeInsets.symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 8,
-                                                        ),
-                                                        filled: true,
-                                                        fillColor: const Color(0xFF161426),
-                                                        border: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(10),
-                                                          borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                                        ),
-                                                        enabledBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(10),
-                                                          borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                                        ),
-                                                        focusedBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(10),
-                                                          borderSide: const BorderSide(color: Color(0xFF00E676)),
-                                                        ),
+                                                        color: const Color(0xFF8B88A5),
+                                                        fontSize: 11,
+                                                        height: 1.3,
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                // Sub-category Price Field
-                                                SizedBox(
-                                                  width: 95,
-                                                  height: 38,
-                                                  child: TextField(
-                                                    controller: sub.priceController,
-                                                    keyboardType: TextInputType.number,
-                                                    style: GoogleFonts.inter(
-                                                      color: Colors.white,
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                    decoration: InputDecoration(
-                                                      hintText: '₹ Charge',
-                                                      hintStyle: GoogleFonts.inter(
-                                                        color: const Color(0xFF535072),
-                                                        fontSize: 12,
-                                                      ),
-                                                      contentPadding: const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 8,
-                                                      ),
-                                                      filled: true,
-                                                      fillColor: const Color(0xFF161426),
-                                                      border: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(10),
-                                                        borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                                      ),
-                                                      enabledBorder: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(10),
-                                                        borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                                      ),
-                                                      focusedBorder: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(10),
-                                                        borderSide: const BorderSide(color: Color(0xFF00E676)),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
+                                                ],
                                               ],
                                             ),
                                           );
@@ -1231,8 +1417,8 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                   const Divider(
                                     height: 1,
                                     color: Color(0xFF302B53),
-                                    indent: 16,
-                                    endIndent: 16,
+                                    indent: 4,
+                                    endIndent: 4,
                                   ),
                               ],
                             );
@@ -1247,7 +1433,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
 
                             return Column(
                               children: [
-                                const Divider(height: 1, color: Color(0xFF302B53), indent: 16, endIndent: 16),
+                                const Divider(height: 1, color: Color(0xFF302B53), indent: 4, endIndent: 4),
                                 Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Container(
@@ -1514,8 +1700,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 48),
+                      const SizedBox(height: 48),
 
                     // Save Button
                     Container(
@@ -1563,12 +1748,28 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          setState(() {
-            _selectedCategory = value;
-            _selectedModel = null;
-            _customModelController.clear();
-            _selectedCategories.clear();
-          });
+          if (_selectedCategory != value) {
+            setState(() {
+              _selectedCategory = value;
+              _selectedModel = null;
+              _customModelController.clear();
+              _selectedCategories.clear();
+              _expandedCategories.clear();
+              for (final list in _subCategoriesMap.values) {
+                for (final item in list) {
+                  item.dispose();
+                }
+              }
+              _subCategoriesMap.clear();
+              for (final sec in _customCategorySections) {
+                (sec['name'] as TextEditingController).dispose();
+                for (final sub in (sec['subs'] as List<SubCategoryItem>)) {
+                  sub.dispose();
+                }
+              }
+              _customCategorySections.clear();
+            });
+          }
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
