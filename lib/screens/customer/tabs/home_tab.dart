@@ -235,34 +235,7 @@ class HomeTab extends StatelessWidget {
     }
 
     Future<void> proceedToBookingFlow() async {
-      final catalog = appState.getServicesForType(typeEnum);
-      ServiceItem? matchedItem;
-      try {
-        matchedItem = catalog.firstWhere(
-          (item) => item.category.toLowerCase() == specialtyName.toLowerCase() ||
-                    item.name.toLowerCase().contains(specialtyName.toLowerCase()) ||
-                    specialtyName.toLowerCase().contains(item.category.toLowerCase()),
-        );
-      } catch (_) {
-        matchedItem = null;
-      }
-      
-      if (matchedItem == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$specialtyName is currently not available for your selected vehicle model.'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-        return;
-      }
-      
       appState.clearServiceSelection();
-      appState.toggleServiceSelection(matchedItem);
-
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ChangeNotifierProvider.value(
           value: appState,
