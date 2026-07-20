@@ -231,6 +231,16 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     ),
                   );
 
+                  final Map<String, List<Map<String, dynamic>>> specializationSubCategories = {};
+                  if (data.containsKey('specializationSubCategories') && data['specializationSubCategories'] is Map) {
+                    final rawMap = data['specializationSubCategories'] as Map<String, dynamic>;
+                    rawMap.forEach((k, v) {
+                      if (v is List) {
+                        specializationSubCategories[k] = v.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+                      }
+                    });
+                  }
+
                   // Construct JobPost object to pass for editing
                   final jobPost = JobPost(
                     id: id,
@@ -249,6 +259,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                     createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
                     vehicleCategory: vehicleCategory,
                     specializationRates: specializationRates,
+                    specializationSubCategories: specializationSubCategories,
                     vehicleModel: vehicleModel,
                   );
 
@@ -338,7 +349,9 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  location,
+                                  location.startsWith('Works in ') ? location.substring(9) : location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 12),
                                 ),
                               ),
@@ -361,18 +374,22 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                             Wrap(
                               spacing: 6,
                               runSpacing: 6,
-                              children: categories.map((cat) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF08693F).withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFF00E676).withOpacity(0.4), width: 1),
-                                    ),
-                                    child: Text(
-                                      cat,
-                                      style: GoogleFonts.inter(color: const Color(0xFF00E676), fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  )).toList(),
+                              children: categories.map((cat) {
+                                final rate = specializationRates[cat];
+                                final label = rate != null && rate > 0 ? '$cat (₹$rate)' : cat;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF08693F).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.4), width: 1),
+                                  ),
+                                  child: Text(
+                                    label,
+                                    style: GoogleFonts.inter(color: const Color(0xFF00E676), fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                );
+                              }).toList(),
                             ),
                             const SizedBox(height: 6),
                           ],
