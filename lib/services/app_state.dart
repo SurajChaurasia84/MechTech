@@ -587,32 +587,55 @@ class AppState extends ChangeNotifier {
           ),
         );
 
+        if (data.containsKey('specializationSubCategories') && data['specializationSubCategories'] is Map) {
+          final subCatMap = data['specializationSubCategories'] as Map<String, dynamic>;
+          subCatMap.forEach((parentCat, subList) {
+            if (subList is List) {
+              for (final sub in subList) {
+                if (sub is Map) {
+                  final sName = sub['name']?.toString() ?? '';
+                  final sPrice = (sub['price'] as num?)?.toDouble() ?? 0.0;
+                  if (sName.isNotEmpty && sPrice > 0) {
+                    if (dynamicServicesMap.containsKey(sName)) {
+                      final existing = dynamicServicesMap[sName]!;
+                      if (sPrice < existing.price) {
+                        dynamicServicesMap[sName] = ServiceItem(
+                          id: existing.id,
+                          name: sName,
+                          price: sPrice,
+                          description: 'Professional $sName service under $parentCat for $modelStr.',
+                          vehicleType: _selectedVehicleType!,
+                          category: parentCat,
+                        );
+                      }
+                    } else {
+                      dynamicServicesMap[sName] = ServiceItem(
+                        id: 'dyn_${sName.hashCode}',
+                        name: sName,
+                        price: sPrice,
+                        description: 'Professional $sName service under $parentCat for $modelStr.',
+                        vehicleType: _selectedVehicleType!,
+                        category: parentCat,
+                      );
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+
         for (final serviceName in categories) {
           final rate = specializationRates[serviceName] ?? 0;
-          if (rate > 0) {
-            if (dynamicServicesMap.containsKey(serviceName)) {
-              // Keep minimum price across all mechanics
-              final existing = dynamicServicesMap[serviceName]!;
-              if (rate < existing.price) {
-                dynamicServicesMap[serviceName] = ServiceItem(
-                  id: existing.id,
-                  name: serviceName,
-                  price: rate.toDouble(),
-                  description: existing.description,
-                  vehicleType: _selectedVehicleType!,
-                  category: serviceName,
-                );
-              }
-            } else {
-              dynamicServicesMap[serviceName] = ServiceItem(
-                id: 'dyn_${serviceName.hashCode}',
-                name: serviceName,
-                price: rate.toDouble(),
-                description: 'Professional $serviceName services offered by expert mechanics for $modelStr.',
-                vehicleType: _selectedVehicleType!,
-                category: serviceName,
-              );
-            }
+          if (rate > 0 && !dynamicServicesMap.containsKey(serviceName)) {
+            dynamicServicesMap[serviceName] = ServiceItem(
+              id: 'dyn_${serviceName.hashCode}',
+              name: serviceName,
+              price: rate.toDouble(),
+              description: 'Professional $serviceName services offered by expert mechanics for $modelStr.',
+              vehicleType: _selectedVehicleType!,
+              category: serviceName,
+            );
           }
         }
       }
@@ -879,10 +902,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedServices(List<ServiceItem> services) {
+    _selectedServices.clear();
+    _selectedServices.addAll(services);
+    notifyListeners();
+  }
+
   void applyMechanicRates(Map<String, int> specializationRates) {
     for (int i = 0; i < _selectedServices.length; i++) {
       final service = _selectedServices[i];
-      final rate = specializationRates[service.category] ?? specializationRates[service.name];
+      final rate = specializationRates[service.name] ?? specializationRates[service.category];
       if (rate != null && rate > 0) {
         _selectedServices[i] = ServiceItem(
           id: service.id,
