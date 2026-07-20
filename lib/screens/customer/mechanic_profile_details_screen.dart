@@ -127,13 +127,14 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         for (final sub in subList) {
           final sName = sub['name'] as String? ?? '';
           final sPrice = (sub['price'] as num?)?.toDouble() ?? 0.0;
+          final sDesc = sub['desc'] as String? ?? sub['description'] as String? ?? '';
           if (sName.isNotEmpty && sPrice > 0) {
             final service = ServiceItem(
               id: '${post['id'] ?? 'post'}_${parentCatName}_$sName',
               name: sName,
               category: parentCatName,
               price: sPrice,
-              description: sName,
+              description: sDesc,
               vehicleType: VehicleType.car,
             );
             if (!catMap[parentCatName]!.any((s) => s.name == sName && s.price == sPrice)) {
@@ -291,7 +292,7 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
           .limit(1)
           .get();
 
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
 
       if (querySnapshot.docs.isEmpty) {
         if (mounted) {
@@ -374,7 +375,7 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         );
       }
     } catch (e) {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
       debugPrint("Error creating chat: $e");
     }
   }
@@ -411,7 +412,11 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -432,13 +437,21 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          mech['name'] ?? 'Mechanic',
-                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          mech['mechanicName'] ?? 'Specialist Mechanic',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
-                          mech['title'] ?? 'Specialist Mechanic',
-                          style: GoogleFonts.inter(color: const Color(0xFF00E676), fontSize: 13, fontWeight: FontWeight.w600),
+                          mech['title'] ?? 'Automobile Expert',
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF00E676),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -446,14 +459,6 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                 ],
               ),
               const SizedBox(height: 20),
-              _buildDetailRow('Experience', mech['experience'] ?? 'Experienced'),
-              _buildDetailRow('Location', rawLoc.isNotEmpty ? rawLoc : 'Not specified'),
-              const SizedBox(height: 16),
-              Text(
-                'About:',
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 6),
               Text(
                 mech['desc'] ?? 'No bio provided.',
                 style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13, height: 1.4),
@@ -490,27 +495,6 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -521,7 +505,11 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         titleSpacing: 0,
         title: Row(
@@ -725,6 +713,17 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          if (service.description.isNotEmpty && service.description != service.name) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              '- ${service.description}',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF8B88A5),
+                                fontSize: 12,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
