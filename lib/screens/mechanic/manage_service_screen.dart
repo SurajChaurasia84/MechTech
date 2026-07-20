@@ -10,6 +10,22 @@ import 'dart:convert';
 import '../../models/service_model.dart';
 import '../../utils/location_helper.dart';
 
+class SubCategoryItem {
+  final TextEditingController nameController;
+  final TextEditingController priceController;
+
+  SubCategoryItem({
+    required String name,
+    required String price,
+  })  : nameController = TextEditingController(text: name),
+        priceController = TextEditingController(text: price);
+
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+  }
+}
+
 class ManageServiceScreen extends StatefulWidget {
   final JobPost? existingPost;
   const ManageServiceScreen({super.key, this.existingPost});
@@ -87,11 +103,9 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
   };
 
   final List<String> _selectedCategories = [];
-  // rate per selected specialization (name -> rate string)
-  final Map<String, TextEditingController> _specializationRates = {};
-
-  // custom user-defined services: each entry = {name: ctrl, rate: ctrl}
-  final List<Map<String, TextEditingController>> _customServices = [];
+  final Map<String, List<SubCategoryItem>> _subCategoriesMap = {};
+  final Set<String> _expandedCategories = {};
+  final List<Map<String, dynamic>> _customCategorySections = [];
 
   double? _latitude;
   double? _longitude;
@@ -110,15 +124,18 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     _locationController.dispose();
     _customModelController.dispose();
 
-    // Dispose dynamic specialization controllers
-    for (final ctrl in _specializationRates.values) {
-      ctrl.dispose();
+    for (final list in _subCategoriesMap.values) {
+      for (final sub in list) {
+        sub.dispose();
+      }
     }
 
-    // Dispose custom service controllers
-    for (final entry in _customServices) {
-      entry['name']?.dispose();
-      entry['rate']?.dispose();
+    for (final customSec in _customCategorySections) {
+      (customSec['name'] as TextEditingController?)?.dispose();
+      final subs = customSec['subs'] as List<SubCategoryItem>? ?? [];
+      for (final sub in subs) {
+        sub.dispose();
+      }
     }
 
     super.dispose();
@@ -162,30 +179,48 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
       }
 
       _selectedCategories.clear();
-      _selectedCategories.addAll(post.categories);
+      _subCategoriesMap.clear();
+      _expandedCategories.clear();
+      _customCategorySections.clear();
 
-      // Load persisted rates into controllers
-      _specializationRates.clear();
-      for (final cat in post.categories) {
-        final savedRate = post.specializationRates[cat];
-        _specializationRates[cat] = TextEditingController(
-          text: savedRate != null && savedRate > 0 ? savedRate.toString() : '',
-        );
-      }
-      // Load custom services: those in categories but NOT in predefined list
       final predefined = _categorySpecializations[post.vehicleCategory] ?? [];
-      _customServices.clear();
-      for (final cat in post.categories) {
-        if (!predefined.contains(cat)) {
-          final savedRate = post.specializationRates[cat];
-          _customServices.add({
-            'name': TextEditingController(text: cat),
-            'rate': TextEditingController(
-              text: savedRate != null && savedRate > 0 ? savedRate.toString() : '',
-            ),
-          });
-        }
+
+      if (post.specializationSubCategories.isNotEmpty) {
+        post.specializationSubCategories.forEach((catName, subList) {
+          final items = <SubCategoryItem>[];
+          for (final subMap in subList) {
+            final sName = subMap['name']?.toString() ?? '';
+            final sPrice = subMap['price']?.toString() ?? '';
+            items.add(SubCategoryItem(name: sName, price: sPrice));
+          }
+
+          if (predefined.contains(catName)) {
+            _selectedCategories.add(catName);
+            _subCategoriesMap[catName] = items;
+            _expandedCategories.add(catName);
+          } else {
+            _customCategorySections.add({
+              'name': TextEditingController(text: catName),
+              'subs': items,
+            });
+          }
+        });
+      } else if (post.specializationRates.isNotEmpty) {
+        post.specializationRates.forEach((catName, rate) {
+          final item = SubCategoryItem(name: catName, price: rate.toString());
+          if (predefined.contains(catName)) {
+            _selectedCategories.add(catName);
+            _subCategoriesMap[catName] = [item];
+            _expandedCategories.add(catName);
+          } else {
+            _customCategorySections.add({
+              'name': TextEditingController(text: catName),
+              'subs': [item],
+            });
+          }
+        });
       }
+
       _latitude = post.latitude;
       _longitude = post.longitude;
       return;
@@ -199,12 +234,21 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     _selectedModel = null;
     _customModelController.clear();
     _selectedCategories.clear();
-    _specializationRates.clear();
-    for (final entry in _customServices) {
-      entry['name']?.dispose();
-      entry['rate']?.dispose();
+    for (final list in _subCategoriesMap.values) {
+      for (final sub in list) {
+        sub.dispose();
+      }
     }
-    _customServices.clear();
+    _subCategoriesMap.clear();
+    _expandedCategories.clear();
+    for (final customSec in _customCategorySections) {
+      (customSec['name'] as TextEditingController?)?.dispose();
+      final subs = customSec['subs'] as List<SubCategoryItem>? ?? [];
+      for (final sub in subs) {
+        sub.dispose();
+      }
+    }
+    _customCategorySections.clear();
     _latitude = null;
     _longitude = null;
 
@@ -383,80 +427,107 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         ? _customModelController.text.trim()
         : _selectedModel;
 
-    // Validate: at least one service must be selected or added
-    final hasCustom = _customServices.any(
-      (e) => (e['name']?.text.trim() ?? '').isNotEmpty,
-    );
-    if (_selectedCategories.isEmpty && !hasCustom) {
+    // Validation for sub-categories
+    bool hasValidSub = false;
+
+    for (final cat in _selectedCategories) {
+      final subs = _subCategoriesMap[cat] ?? [];
+      if (subs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please add at least one sub-category under "$cat"'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      for (final sub in subs) {
+        final name = sub.nameController.text.trim();
+        final price = sub.priceController.text.trim();
+        if (name.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please enter sub-category name under "$cat"'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        if (price.isEmpty || int.tryParse(price) == null || int.parse(price) <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please enter a valid charge for "$name" under "$cat"'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        hasValidSub = true;
+      }
+    }
+
+    for (final customSec in _customCategorySections) {
+      final catName = (customSec['name'] as TextEditingController).text.trim();
+      if (catName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter category name for all custom categories'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      final subs = customSec['subs'] as List<SubCategoryItem>;
+      if (subs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please add at least one sub-category under custom category "$catName"'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      for (final sub in subs) {
+        final name = sub.nameController.text.trim();
+        final price = sub.priceController.text.trim();
+        if (name.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please enter sub-category name under "$catName"'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        if (price.isEmpty || int.tryParse(price) == null || int.parse(price) <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please enter a valid charge for "$name" under "$catName"'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        hasValidSub = true;
+      }
+    }
+
+    if (!hasValidSub) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select or add at least one service to post a job'),
+          content: Text('Please select at least one service category and add sub-categories with pricing'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
-    }
-
-    // Validate: every selected predefined specialization must have a rate
-    for (final cat in _selectedCategories) {
-      final rate = _specializationRates[cat]?.text.trim() ?? '';
-      if (rate.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please enter a charge for "$cat"'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-      if (int.tryParse(rate) == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Invalid charge for "$cat" — enter a number'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-    }
-
-    // Validate: every custom service must have a name and a rate
-    for (int i = 0; i < _customServices.length; i++) {
-      final name = _customServices[i]['name']?.text.trim() ?? '';
-      final rate = _customServices[i]['rate']?.text.trim() ?? '';
-      if (name.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a name for all custom services'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-      if (rate.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please enter a charge for "$name"'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-      if (int.tryParse(rate) == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Invalid charge for "$name" — enter a number'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
     }
 
     final appState = context.read<AppState>();
@@ -468,29 +539,52 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     try {
       final expStr = '${_expController.text.trim()} years of experience';
       final bioStr = '"${_bioController.text.trim()}"';
-      final locStr = _locationController.text.trim().isNotEmpty
-          ? 'Works in ${_locationController.text.trim()}'
-          : 'Works in Bengaluru';
+      final locStr = _locationController.text.trim();
 
-      // Build rates map with only selected specializations that have a rate
-      final Map<String, dynamic> ratesMap = {};
+      final Map<String, List<Map<String, dynamic>>> subCategoriesData = {};
+      final Map<String, int> ratesMap = {};
+      final List<String> allCategories = [];
+
       for (final cat in _selectedCategories) {
-        final ctrl = _specializationRates[cat];
-        final rateVal = ctrl?.text.trim() ?? '';
-        if (rateVal.isNotEmpty) {
-          ratesMap[cat] = int.tryParse(rateVal) ?? 0;
+        final subs = _subCategoriesMap[cat] ?? [];
+        final validSubsList = <Map<String, dynamic>>[];
+        for (final sub in subs) {
+          final sName = sub.nameController.text.trim();
+          final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
+          if (sName.isNotEmpty && sPrice > 0) {
+            validSubsList.add({
+              'name': sName,
+              'price': sPrice,
+            });
+            ratesMap[sName] = sPrice;
+            if (!allCategories.contains(sName)) allCategories.add(sName);
+          }
+        }
+        if (validSubsList.isNotEmpty) {
+          subCategoriesData[cat] = validSubsList;
+          if (!allCategories.contains(cat)) allCategories.add(cat);
         }
       }
-      // Include custom services
-      final List<String> allCategories = List.from(_selectedCategories);
-      for (final entry in _customServices) {
-        final name = entry['name']?.text.trim() ?? '';
-        final rateVal = entry['rate']?.text.trim() ?? '';
-        if (name.isNotEmpty) {
-          if (!allCategories.contains(name)) allCategories.add(name);
-          if (rateVal.isNotEmpty) {
-            ratesMap[name] = int.tryParse(rateVal) ?? 0;
+
+      for (final customSec in _customCategorySections) {
+        final catName = (customSec['name'] as TextEditingController).text.trim();
+        final subs = customSec['subs'] as List<SubCategoryItem>;
+        final validSubsList = <Map<String, dynamic>>[];
+        for (final sub in subs) {
+          final sName = sub.nameController.text.trim();
+          final sPrice = int.tryParse(sub.priceController.text.trim()) ?? 0;
+          if (sName.isNotEmpty && sPrice > 0) {
+            validSubsList.add({
+              'name': sName,
+              'price': sPrice,
+            });
+            ratesMap[sName] = sPrice;
+            if (!allCategories.contains(sName)) allCategories.add(sName);
           }
+        }
+        if (validSubsList.isNotEmpty && catName.isNotEmpty) {
+          subCategoriesData[catName] = validSubsList;
+          if (!allCategories.contains(catName)) allCategories.add(catName);
         }
       }
 
@@ -507,6 +601,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
         'location': locStr,
         'categories': allCategories,
         'specializationRates': ratesMap,
+        'specializationSubCategories': subCategoriesData,
         'tags': const <String>[],
         'latitude': _latitude,
         'longitude': _longitude,
@@ -837,263 +932,554 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                       child: Column(
                         children: [
                           ...(_categorySpecializations[_selectedCategory] ?? []).asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final cat = entry.value;
-                          final isSelected = _selectedCategories.contains(cat);
-                          final specs = (_categorySpecializations[_selectedCategory] ?? []);
-                          final isLast = index == specs.length - 1;
+                            final index = entry.key;
+                            final cat = entry.value;
+                            final isSelected = _selectedCategories.contains(cat);
+                            final isExpanded = _expandedCategories.contains(cat);
+                            final subItems = _subCategoriesMap[cat] ?? [];
+                            final specs = (_categorySpecializations[_selectedCategory] ?? []);
+                            final isLast = index == specs.length - 1 && _customCategorySections.isEmpty;
 
-                          return Column(
-                            children: [
-                              InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    if (isSelected) {
-                                      _selectedCategories.remove(cat);
-                                      _specializationRates[cat]?.dispose();
-                                      _specializationRates.remove(cat);
-                                    } else {
-                                      _selectedCategories.add(cat);
-                                      _specializationRates[cat] = TextEditingController();
-                                    }
-                                  });
-                                },
-                                borderRadius: BorderRadius.only(
-                                  topLeft: index == 0 ? const Radius.circular(16) : Radius.zero,
-                                  topRight: index == 0 ? const Radius.circular(16) : Radius.zero,
-                                  bottomLeft: isLast ? const Radius.circular(16) : Radius.zero,
-                                  bottomRight: isLast ? const Radius.circular(16) : Radius.zero,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  child: Column(
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 20,
-                                            height: 20,
+                            return Column(
+                              children: [
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isExpanded) {
+                                        _expandedCategories.remove(cat);
+                                      } else {
+                                        _expandedCategories.add(cat);
+                                        if (!isSelected) {
+                                          _selectedCategories.add(cat);
+                                        }
+                                        if (_subCategoriesMap[cat] == null || _subCategoriesMap[cat]!.isEmpty) {
+                                          _subCategoriesMap[cat] = [
+                                            SubCategoryItem(name: '', price: '')
+                                          ];
+                                        }
+                                      }
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    child: Row(
+                                      children: [
+                                        // Checkbox / Select Button
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              if (isSelected) {
+                                                _selectedCategories.remove(cat);
+                                                _expandedCategories.remove(cat);
+                                                final list = _subCategoriesMap.remove(cat);
+                                                if (list != null) {
+                                                  for (final item in list) item.dispose();
+                                                }
+                                              } else {
+                                                _selectedCategories.add(cat);
+                                                _expandedCategories.add(cat);
+                                                if (_subCategoriesMap[cat] == null || _subCategoriesMap[cat]!.isEmpty) {
+                                                  _subCategoriesMap[cat] = [
+                                                    SubCategoryItem(name: '', price: '')
+                                                  ];
+                                                }
+                                              }
+                                            });
+                                          },
+                                          child: Container(
+                                            width: 22,
+                                            height: 22,
                                             decoration: BoxDecoration(
                                               shape: BoxShape.circle,
-                                              color: isSelected
-                                                  ? const Color(0xFF00E676)
-                                                  : Colors.transparent,
+                                              color: isSelected ? const Color(0xFF00E676) : Colors.transparent,
                                               border: Border.all(
-                                                color: isSelected
-                                                    ? const Color(0xFF00E676)
-                                                    : const Color(0xFF302B53),
-                                                width: 1.5,
+                                                color: isSelected ? const Color(0xFF00E676) : const Color(0xFF535072),
+                                                width: 1.8,
                                               ),
                                             ),
                                             child: isSelected
-                                                ? const Icon(Icons.check, size: 13, color: Color(0xFF0D0B18))
+                                                ? const Icon(Icons.check, size: 14, color: Color(0xFF0D0B18))
                                                 : null,
                                           ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Category Name
+                                        Expanded(
+                                          child: Text(
+                                            cat,
+                                            style: GoogleFonts.outfit(
+                                              color: isSelected ? Colors.white : const Color(0xFF8B88A5),
+                                              fontSize: 14,
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        // Count Badge
+                                        if (subItems.isNotEmpty) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF00E676).withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.4)),
+                                            ),
                                             child: Text(
-                                              cat,
+                                              '${subItems.length} sub-service${subItems.length == 1 ? '' : 's'}',
                                               style: GoogleFonts.inter(
-                                                color: isSelected ? Colors.white : const Color(0xFF8B88A5),
-                                                fontSize: 13,
-                                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                                color: const Color(0xFF00E676),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
                                               ),
                                             ),
                                           ),
-                                          if (isSelected)
-                                            SizedBox(
-                                              width: 90,
-                                              height: 36,
-                                              child: TextField(
-                                                controller: _specializationRates[cat],
-                                                keyboardType: TextInputType.number,
-                                                style: GoogleFonts.inter(
-                                                  color: Colors.white,
-                                                  fontSize: 13,
-                                                ),
-                                                decoration: InputDecoration(
-                                                  hintText: '₹ Rate',
-                                                  hintStyle: GoogleFonts.inter(
-                                                    color: const Color(0xFF8B88A5),
-                                                    fontSize: 12,
-                                                  ),
-                                                  contentPadding: const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 8,
-                                                  ),
-                                                  filled: true,
-                                                  fillColor: const Color(0xFF0D0B18),
-                                                  border: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(10),
-                                                    borderSide: const BorderSide(
-                                                      color: Color(0xFF302B53),
-                                                    ),
-                                                  ),
-                                                  enabledBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(10),
-                                                    borderSide: const BorderSide(
-                                                      color: Color(0xFF302B53),
-                                                    ),
-                                                  ),
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(10),
-                                                    borderSide: const BorderSide(
-                                                      color: Color(0xFF00E676),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
+                                          const SizedBox(width: 8),
                                         ],
-                                      ),
-                                    ],
+                                        Icon(
+                                          isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                                          color: const Color(0xFF8B88A5),
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                              if (!isLast)
-                                const Divider(
-                                  height: 1,
-                                  color: Color(0xFF302B53),
-                                  indent: 48,
-                                ),
-                            ],
-                          );
-                        }),
 
-                          // Custom service rows
-                          ..._customServices.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final svc = entry.value;
+                                // Expanded Sub-categories Area
+                                if (isExpanded)
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0D0B18),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFF302B53)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Sub-categories for $cat:',
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF8B88A5),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        ...subItems.asMap().entries.map((subEntry) {
+                                          final sIdx = subEntry.key;
+                                          final sub = subEntry.value;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 8.0),
+                                            child: Row(
+                                              children: [
+                                                // Remove Sub-category button
+                                                GestureDetector(
+                                                  onTap: () {
+                                                    setState(() {
+                                                      sub.dispose();
+                                                      subItems.removeAt(sIdx);
+                                                      if (subItems.isEmpty) {
+                                                        _selectedCategories.remove(cat);
+                                                        _expandedCategories.remove(cat);
+                                                        _subCategoriesMap.remove(cat);
+                                                      }
+                                                    });
+                                                  },
+                                                  child: Container(
+                                                    width: 24,
+                                                    height: 24,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: const Color(0xFF2A1A2E),
+                                                      border: Border.all(
+                                                        color: Colors.redAccent.withValues(alpha: 0.6),
+                                                        width: 1.2,
+                                                      ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.close,
+                                                      size: 13,
+                                                      color: Colors.redAccent,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                // Sub-category Name Field
+                                                Expanded(
+                                                  child: SizedBox(
+                                                    height: 38,
+                                                    child: TextField(
+                                                      controller: sub.nameController,
+                                                      textCapitalization: TextCapitalization.words,
+                                                      style: GoogleFonts.inter(
+                                                        color: Colors.white,
+                                                        fontSize: 13,
+                                                      ),
+                                                      decoration: InputDecoration(
+                                                        hintText: 'e.g. Side Mirror / Oil Change',
+                                                        hintStyle: GoogleFonts.inter(
+                                                          color: const Color(0xFF535072),
+                                                          fontSize: 12,
+                                                        ),
+                                                        contentPadding: const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 8,
+                                                        ),
+                                                        filled: true,
+                                                        fillColor: const Color(0xFF161426),
+                                                        border: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                          borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                        ),
+                                                        enabledBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                          borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                        ),
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                          borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                // Sub-category Price Field
+                                                SizedBox(
+                                                  width: 95,
+                                                  height: 38,
+                                                  child: TextField(
+                                                    controller: sub.priceController,
+                                                    keyboardType: TextInputType.number,
+                                                    style: GoogleFonts.inter(
+                                                      color: Colors.white,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                    decoration: InputDecoration(
+                                                      hintText: '₹ Charge',
+                                                      hintStyle: GoogleFonts.inter(
+                                                        color: const Color(0xFF535072),
+                                                        fontSize: 12,
+                                                      ),
+                                                      contentPadding: const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 8,
+                                                      ),
+                                                      filled: true,
+                                                      fillColor: const Color(0xFF161426),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.circular(10),
+                                                        borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                      ),
+                                                      enabledBorder: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.circular(10),
+                                                        borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                      ),
+                                                      focusedBorder: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.circular(10),
+                                                        borderSide: const BorderSide(color: Color(0xFF00E676)),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                        const SizedBox(height: 4),
+                                        // "+ Add Sub-Category" Button
+                                        InkWell(
+                                          onTap: () {
+                                            setState(() {
+                                              subItems.add(SubCategoryItem(name: '', price: ''));
+                                            });
+                                          },
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF00E676).withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.add_rounded, color: Color(0xFF00E676), size: 16),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Add Sub-Category',
+                                                  style: GoogleFonts.inter(
+                                                    color: const Color(0xFF00E676),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                if (!isLast)
+                                  const Divider(
+                                    height: 1,
+                                    color: Color(0xFF302B53),
+                                    indent: 16,
+                                    endIndent: 16,
+                                  ),
+                              ],
+                            );
+                          }),
+
+                          // Custom Category Sections
+                          ..._customCategorySections.asMap().entries.map((entry) {
+                            final cIdx = entry.key;
+                            final customSec = entry.value;
+                            final catNameCtrl = customSec['name'] as TextEditingController;
+                            final subs = customSec['subs'] as List<SubCategoryItem>;
+
                             return Column(
                               children: [
                                 const Divider(height: 1, color: Color(0xFF302B53), indent: 16, endIndent: 16),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  child: Row(
-                                    children: [
-                                      // Remove button
-                                      GestureDetector(
-                                        onTap: () {
-                                          setState(() {
-                                            svc['name']?.dispose();
-                                            svc['rate']?.dispose();
-                                            _customServices.removeAt(idx);
-                                          });
-                                        },
-                                        child: Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: const Color(0xFF2A1A2E),
-                                            border: Border.all(
-                                              color: Colors.redAccent.withValues(alpha: 0.6),
-                                              width: 1.2,
+                                  padding: const EdgeInsets.all(12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0D0B18),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFF00B0FF).withValues(alpha: 0.4)),
+                                    ),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            // Delete custom category
+                                            GestureDetector(
+                                              onTap: () {
+                                                setState(() {
+                                                  catNameCtrl.dispose();
+                                                  for (final sub in subs) sub.dispose();
+                                                  _customCategorySections.removeAt(cIdx);
+                                                });
+                                              },
+                                              child: Container(
+                                                width: 24,
+                                                height: 24,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: const Color(0xFF2A1A2E),
+                                                  border: Border.all(
+                                                    color: Colors.redAccent.withValues(alpha: 0.6),
+                                                    width: 1.2,
+                                                  ),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  size: 13,
+                                                  color: Colors.redAccent,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.close,
-                                            size: 12,
-                                            color: Colors.redAccent,
+                                            const SizedBox(width: 10),
+                                            // Custom category name field
+                                            Expanded(
+                                              child: SizedBox(
+                                                height: 38,
+                                                child: TextField(
+                                                  controller: catNameCtrl,
+                                                  textCapitalization: TextCapitalization.words,
+                                                  style: GoogleFonts.outfit(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Custom Category Name',
+                                                    hintStyle: GoogleFonts.inter(
+                                                      color: const Color(0xFF535072),
+                                                      fontSize: 13,
+                                                    ),
+                                                    contentPadding: const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 8,
+                                                    ),
+                                                    filled: true,
+                                                    fillColor: const Color(0xFF161426),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                    ),
+                                                    enabledBorder: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                    ),
+                                                    focusedBorder: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      borderSide: const BorderSide(color: Color(0xFF00B0FF)),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        ...subs.asMap().entries.map((subEntry) {
+                                          final sIdx = subEntry.key;
+                                          final sub = subEntry.value;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 8.0),
+                                            child: Row(
+                                              children: [
+                                                GestureDetector(
+                                                  onTap: () {
+                                                    setState(() {
+                                                      sub.dispose();
+                                                      subs.removeAt(sIdx);
+                                                    });
+                                                  },
+                                                  child: Container(
+                                                    width: 22,
+                                                    height: 22,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: const Color(0xFF2A1A2E),
+                                                      border: Border.all(
+                                                        color: Colors.redAccent.withValues(alpha: 0.6),
+                                                        width: 1.2,
+                                                      ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.close,
+                                                      size: 12,
+                                                      color: Colors.redAccent,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: SizedBox(
+                                                    height: 36,
+                                                    child: TextField(
+                                                      controller: sub.nameController,
+                                                      textCapitalization: TextCapitalization.words,
+                                                      style: GoogleFonts.inter(
+                                                        color: Colors.white,
+                                                        fontSize: 13,
+                                                      ),
+                                                      decoration: InputDecoration(
+                                                        hintText: 'Sub-category name',
+                                                        hintStyle: GoogleFonts.inter(
+                                                          color: const Color(0xFF535072),
+                                                          fontSize: 12,
+                                                        ),
+                                                        contentPadding: const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 8,
+                                                        ),
+                                                        filled: true,
+                                                        fillColor: const Color(0xFF161426),
+                                                        border: OutlineInputBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                          borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                SizedBox(
+                                                  width: 90,
+                                                  height: 36,
+                                                  child: TextField(
+                                                    controller: sub.priceController,
+                                                    keyboardType: TextInputType.number,
+                                                    style: GoogleFonts.inter(
+                                                      color: Colors.white,
+                                                      fontSize: 13,
+                                                    ),
+                                                    decoration: InputDecoration(
+                                                      hintText: '₹ Charge',
+                                                      hintStyle: GoogleFonts.inter(
+                                                        color: const Color(0xFF535072),
+                                                        fontSize: 12,
+                                                      ),
+                                                      contentPadding: const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 8,
+                                                      ),
+                                                      filled: true,
+                                                      fillColor: const Color(0xFF161426),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.circular(10),
+                                                        borderSide: const BorderSide(color: Color(0xFF302B53)),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                        const SizedBox(height: 4),
+                                        InkWell(
+                                          onTap: () {
+                                            setState(() {
+                                              subs.add(SubCategoryItem(name: '', price: ''));
+                                            });
+                                          },
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF00B0FF).withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: const Color(0xFF00B0FF).withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.add_rounded, color: Color(0xFF00B0FF), size: 15),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Add Sub-Category',
+                                                  style: GoogleFonts.inter(
+                                                    color: const Color(0xFF00B0FF),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      // Service name field
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 36,
-                                          child: TextField(
-                                            controller: svc['name'],
-                                            textCapitalization: TextCapitalization.words,
-                                            style: GoogleFonts.inter(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText: 'Service name',
-                                              hintStyle: GoogleFonts.inter(
-                                                color: const Color(0xFF8B88A5),
-                                                fontSize: 12,
-                                              ),
-                                              contentPadding: const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                                vertical: 8,
-                                              ),
-                                              filled: true,
-                                              fillColor: const Color(0xFF0D0B18),
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(10),
-                                                borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                              ),
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(10),
-                                                borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(10),
-                                                borderSide: const BorderSide(color: Color(0xFF00B0FF)),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Rate field
-                                      SizedBox(
-                                        width: 90,
-                                        height: 36,
-                                        child: TextField(
-                                          controller: svc['rate'],
-                                          keyboardType: TextInputType.number,
-                                          style: GoogleFonts.inter(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                          ),
-                                          decoration: InputDecoration(
-                                            hintText: '₹ Rate',
-                                            hintStyle: GoogleFonts.inter(
-                                              color: const Color(0xFF8B88A5),
-                                              fontSize: 12,
-                                            ),
-                                            contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 8,
-                                            ),
-                                            filled: true,
-                                            fillColor: const Color(0xFF0D0B18),
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                            ),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: const BorderSide(color: Color(0xFF302B53)),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: const BorderSide(color: Color(0xFF00E676)),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             );
                           }),
 
-                          // + Add Services button
+                          // + Add Custom Category Button
                           Column(
                             children: [
                               const Divider(height: 1, color: Color(0xFF302B53)),
                               InkWell(
                                 onTap: () {
                                   setState(() {
-                                    _customServices.add({
+                                    _customCategorySections.add({
                                       'name': TextEditingController(),
-                                      'rate': TextEditingController(),
+                                      'subs': [SubCategoryItem(name: '', price: '')],
                                     });
                                   });
                                 },
@@ -1113,7 +1499,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'Add Services',
+                                        'Add Custom Category',
                                         style: GoogleFonts.inter(
                                           color: const Color(0xFF00B0FF),
                                           fontSize: 13,
