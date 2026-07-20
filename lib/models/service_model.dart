@@ -74,6 +74,7 @@ class JobPost {
   final DateTime createdAt;
   final String vehicleCategory;
   final Map<String, int> specializationRates;
+  final Map<String, List<Map<String, dynamic>>> specializationSubCategories;
   final String? vehicleModel;
 
   JobPost({
@@ -93,6 +94,7 @@ class JobPost {
     required this.createdAt,
     required this.vehicleCategory,
     this.specializationRates = const {},
+    this.specializationSubCategories = const {},
     this.vehicleModel,
   });
 }
