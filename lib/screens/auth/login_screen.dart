@@ -312,7 +312,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 1.4,
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
                           if (_isLoading)
                             const Center(
