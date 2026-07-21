@@ -28,8 +28,10 @@ class BookingSummaryScreen extends StatefulWidget {
 
 class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
   bool _isLoading = false;
+  bool _useSCoins = false;
   late Razorpay _razorpay;
   BookingPrepResult? _cachedPrepResult;
+  String? _lastOrderId;
   String _selectedPaymentMethod = 'Online';
 
   @override
@@ -79,7 +81,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'orderId': response.orderId,
+          'orderId': response.orderId ?? _lastOrderId,
           'paymentId': response.paymentId,
           'signature': response.signature,
           'mechanicId': widget.mechanicId,
@@ -144,7 +146,23 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         paymentStatus: bookingMap['paymentStatus'] as String?,
       );
 
-      // 3. Trigger a background local list update
+      // 3. Deduct S-Coins if discount was used
+      if (_useSCoins) {
+        final availableCoins = appState.sCoins;
+        final maxRupeeDiscount = (availableCoins / 100.0) * 10.0;
+        final serviceTotal = appState.selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
+        final coinDiscount = (maxRupeeDiscount > serviceTotal ? serviceTotal : maxRupeeDiscount);
+        final coinsToRedeem = ((coinDiscount / 10.0) * 100).round();
+        if (coinsToRedeem > 0) {
+          await appState.redeemSCoins(
+            coinsToRedeem,
+            'Booking Discount Redemption',
+            subtitle: 'Redeemed S-Coins on service booking',
+          );
+        }
+      }
+
+      // 4. Trigger a background local list update
       appState.refreshBookings();
       appState.clearServiceSelection();
 
@@ -212,6 +230,16 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       _cachedPrepResult = prepResult;
 
+      // Calculate prices and coin discount
+      final serviceTotal = appState.selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
+      const platformFee = PaymentConfig.platformFee;
+      final availableCoins = appState.sCoins;
+      final maxRupeeDiscount = (availableCoins / 100.0) * 10.0;
+      final coinDiscount = _useSCoins ? (maxRupeeDiscount > serviceTotal ? serviceTotal : maxRupeeDiscount) : 0.0;
+      final finalAmount = (serviceTotal + platformFee - coinDiscount).clamp(0.0, double.infinity);
+      final coinsToRedeem = _useSCoins ? ((coinDiscount / 10.0) * 100).round() : 0;
+      final payableAmountInPaise = (finalAmount * 100).round();
+
       final token = await appState.user?.getIdToken();
 
       // Create Razorpay Order on Vercel Backend securely
@@ -227,6 +255,13 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'vehicleModel': appState.selectedVehicleModel ?? '',
           'vehicleType': appState.selectedVehicleType?.name ?? 'car',
           'services': appState.selectedServices.map((s) => s.name).toList(),
+          'discount': coinDiscount,
+          'coinDiscount': coinDiscount,
+          'useSCoins': _useSCoins,
+          'coinsToRedeem': coinsToRedeem,
+          'amount': payableAmountInPaise,
+          'finalAmount': finalAmount,
+          'payableAmount': finalAmount,
         }),
       );
 
@@ -236,18 +271,15 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       final orderData = jsonDecode(orderResponse.body);
       final orderId = orderData['orderId'] as String?;
-      final serverAmount = orderData['amount'] as num?;
+      _lastOrderId = orderId;
 
-      if (orderId == null || orderId.isEmpty || serverAmount == null) {
-        throw Exception("Generated Order ID or amount is null or empty.");
-      }
-
-      final options = {
+      final Map<String, dynamic> options = {
         'key': PaymentConfig.razorpayKeyId,
-        'amount': serverAmount,
+        'amount': payableAmountInPaise,
         'name': 'MechTech Services',
-        'description': 'Booking Service Payment',
-        'order_id': orderId,
+        'description': _useSCoins
+            ? 'Booking Service Payment (S-Coins Applied)'
+            : 'Booking Service Payment',
         'timeout': 300,
         'prefill': {
           'contact': appState.currentCustomerPhone ?? '',
@@ -257,6 +289,10 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'color': '#00E676',
         }
       };
+
+      if (!_useSCoins && orderId != null && orderId.isNotEmpty) {
+        options['order_id'] = orderId;
+      }
 
       _razorpay.open(options);
     } catch (e) {
@@ -397,7 +433,10 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
     // Prices calculation
     final serviceTotal = selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
     const platformFee = PaymentConfig.platformFee;
-    final total = serviceTotal + platformFee;
+    final availableCoins = appState.sCoins;
+    final maxRupeeDiscount = (availableCoins / 100.0) * 10.0;
+    final coinDiscount = _useSCoins ? (maxRupeeDiscount > serviceTotal ? serviceTotal : maxRupeeDiscount) : 0.0;
+    final total = (serviceTotal + platformFee - coinDiscount).clamp(0.0, double.infinity);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0B18),
@@ -597,6 +636,64 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                         }),
                         const SizedBox(height: 24),
 
+                        if (appState.sCoins > 0) ...[
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFFFD700).withValues(alpha: 0.5),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  'assets/coin.png',
+                                  width: 28,
+                                  height: 28,
+                                  errorBuilder: (_, _, _) => const Icon(
+                                    Icons.monetization_on_rounded,
+                                    color: Color(0xFFFFD700),
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Use S-Coins',
+                                        style: GoogleFonts.outfit(
+                                          color: const Color(0xFFFFD700),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Use ${appState.sCoins} S-Coins for ₹${maxRupeeDiscount.toStringAsFixed(2)} off',
+                                        style: GoogleFonts.inter(
+                                          color: const Color(0xFF8B88A5),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: _useSCoins,
+                                  activeColor: const Color(0xFFFFD700),
+                                  onChanged: (val) => setState(() => _useSCoins = val),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
@@ -645,6 +742,30 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                   ),
                                 ],
                               ),
+                              if (_useSCoins && coinDiscount > 0) ...[
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'S-Coin Discount',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        color: const Color(0xFFFFD700),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      '-₹${coinDiscount.toStringAsFixed(2)}',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 14,
+                                        color: const Color(0xFFFFD700),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const Divider(color: Color(0xFF302B53), height: 24, thickness: 1.2),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
