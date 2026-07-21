@@ -12,6 +12,7 @@ import 'tabs/profile_tab.dart';
 import 'tabs/messages_tab.dart';
 import 'widgets/vehicle_selection_sheet.dart';
 import '../../utils/location_helper.dart';
+import 'wallet_screen.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -216,12 +217,67 @@ class _CustomerDashboardState extends State<CustomerDashboard>
                   );
                 },
               ),
-            if (_currentIndex == 3)
+            if (_currentIndex == 3) ...[
+              Consumer<AppState>(
+                builder: (context, appState, _) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const WalletScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.6),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset(
+                                'assets/coin.png',
+                                width: 18,
+                                height: 18,
+                                errorBuilder: (_, _, _) => const Icon(
+                                  Icons.monetization_on_rounded,
+                                  color: Color(0xFFFFD700),
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${appState.sCoins} Coins',
+                                style: GoogleFonts.outfit(
+                                  color: const Color(0xFFFFD700),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
                 tooltip: 'Switch Profile Role',
                 onPressed: () => _showRoleSwitchDialog(context),
               ),
+            ],
           ],
           // Car / Bike / EV tabs — only on Home tab
           bottom: _currentIndex == 0
