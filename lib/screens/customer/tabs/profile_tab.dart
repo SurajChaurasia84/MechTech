@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../services/app_state.dart';
 import '../edit_profile_screen.dart';
 import '../add_address_screen.dart';
+import '../wallet_screen.dart';
+import '../referral_screen.dart';
 import 'history_tab.dart';
 
 class ProfileTab extends StatelessWidget {
@@ -73,6 +74,18 @@ class ProfileTab extends StatelessWidget {
             ),
             child: Column(
               children: [
+                _buildProfileListItem(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'My S-Coin Wallet',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WalletScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
                   icon: Icons.person_2_outlined,
                   title: 'Edit Profile',
@@ -148,11 +161,13 @@ class ProfileTab extends StatelessWidget {
                 ),
                 const Divider(color: Color(0xFF302B53), height: 1, thickness: 1),
                 _buildProfileListItem(
-                  icon: Icons.share_outlined,
-                  title: 'Share App',
+                  icon: Icons.card_giftcard_rounded,
+                  title: 'Refer & Earn ₹60',
                   onTap: () {
-                    Share.share(
-                      'Check out MechTech - the premium mechanic service app! Download now: https://play.google.com/store/apps/details?id=com.mechtech.mechanic.apps',
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ReferralScreen(),
+                      ),
                     );
                   },
                 ),
