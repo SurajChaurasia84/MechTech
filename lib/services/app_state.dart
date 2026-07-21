@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -31,12 +32,37 @@ class AppState extends ChangeNotifier {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
+  int _sCoins = 0;
+  StreamSubscription<DocumentSnapshot>? _userDocSubscription;
+
+  int get sCoins => _sCoins;
+  double get sCoinsRupeeValue => (_sCoins / 100.0) * 10.0;
+
   // Constructor
   AppState() {
     _initLocalNotifications();
     _auth.authStateChanges().listen((User? user) async {
       _user = user;
+      _userDocSubscription?.cancel();
       if (user != null) {
+        // Real-time listener for sCoins and profile updates
+        _userDocSubscription = _firestore
+            .collection('users')
+            .doc(user.uid)
+            .snapshots()
+            .listen((snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data();
+            if (data != null) {
+              final coinsFromDb = (data['sCoins'] as num?)?.toInt();
+              if (coinsFromDb != null && coinsFromDb != _sCoins) {
+                _sCoins = coinsFromDb;
+                notifyListeners();
+              }
+            }
+          }
+        });
+
         try {
           final doc = await _firestore.collection('users').doc(user.uid).get();
           if (doc.exists) {
@@ -46,6 +72,7 @@ class AppState extends ChangeNotifier {
             _currentCustomerName = data?['name'] as String?;
             _currentCustomerEmail = data?['email'] as String?;
             _userRole = data?['role'] as String?;
+            _sCoins = (data?['sCoins'] as num?)?.toInt() ?? 0;
 
             final vTypeStr = data?['selectedVehicleType'] as String?;
             if (vTypeStr != null) {
@@ -229,6 +256,64 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error sending push notification via Vercel gateway: $e");
     }
+  }
+
+  Future<void> addSCoins(int coinsToAdd, String title, {String? subtitle}) async {
+    _sCoins += coinsToAdd;
+    notifyListeners();
+
+    final currentUser = _user;
+    if (currentUser != null) {
+      try {
+        await _firestore.collection('users').doc(currentUser.uid).set({
+          'sCoins': FieldValue.increment(coinsToAdd),
+        }, SetOptions(merge: true));
+
+        await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('wallet_transactions')
+            .add({
+          'title': title,
+          'subtitle': subtitle ?? 'Service completion reward',
+          'amount': coinsToAdd,
+          'type': 'credit',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Error updating S-Coins in Firestore: $e");
+      }
+    }
+  }
+
+  Future<bool> redeemSCoins(int coinsToRedeem, String title, {String? subtitle}) async {
+    if (_sCoins < coinsToRedeem) return false;
+    _sCoins -= coinsToRedeem;
+    notifyListeners();
+
+    final currentUser = _user;
+    if (currentUser != null) {
+      try {
+        await _firestore.collection('users').doc(currentUser.uid).set({
+          'sCoins': FieldValue.increment(-coinsToRedeem),
+        }, SetOptions(merge: true));
+
+        await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('wallet_transactions')
+            .add({
+          'title': title,
+          'subtitle': subtitle ?? 'Booking discount redemption',
+          'amount': -coinsToRedeem,
+          'type': 'debit',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Error redeeming S-Coins in Firestore: $e");
+      }
+    }
+    return true;
   }
 
   Future<void> _loadBookingsFromFirestore(String uid) async {
@@ -1137,6 +1222,102 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error cancelling booking: $e");
       return false;
+    }
+  }
+
+  Future<void> completeBookingAndAwardRewards(ServiceBooking booking) async {
+    try {
+      // 1. Update booking status to 'completed'
+      await _firestore.collection('bookings').doc(booking.id).update({'status': 'completed'});
+      if (booking.customerId != null) {
+        await _firestore
+            .collection('users')
+            .doc(booking.customerId!)
+            .collection('bookings')
+            .doc(booking.id)
+            .update({'status': 'completed'});
+      }
+
+      final customerId = booking.customerId;
+      if (customerId != null) {
+        // Calculate S-Coins reward based on vehicle category
+        int rewardCoins = 400; // Car default
+        if (booking.vehicleType == VehicleType.bike) rewardCoins = 75;
+        if (booking.vehicleType == VehicleType.ev) rewardCoins = 300;
+
+        // Credit customer wallet
+        await _firestore.collection('users').doc(customerId).set({
+          'sCoins': FieldValue.increment(rewardCoins),
+        }, SetOptions(merge: true));
+
+        await _firestore
+            .collection('users')
+            .doc(customerId)
+            .collection('wallet_transactions')
+            .add({
+          'title': '${booking.vehicleType.name.toUpperCase()} Service Reward',
+          'subtitle': 'Service completion bonus for booking #${booking.id}',
+          'amount': rewardCoins,
+          'type': 'credit',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // Check referral reward for referrer
+        final custDoc = await _firestore.collection('users').doc(customerId).get();
+        final referredBy = custDoc.data()?['referralCodeUsed'] as String? ?? custDoc.data()?['referredBy'] as String?;
+        final isFirstBooking = custDoc.data()?['referralRewarded'] as bool? ?? false;
+
+        if (referredBy != null && referredBy.isNotEmpty && !isFirstBooking) {
+          // Mark referral rewarded
+          await _firestore.collection('users').doc(customerId).set({
+            'referralRewarded': true,
+          }, SetOptions(merge: true));
+
+          // Find referrer user by referralCode
+          final referrerQuery = await _firestore
+              .collection('users')
+              .where('referralCode', isEqualTo: referredBy)
+              .limit(1)
+              .get();
+
+          if (referrerQuery.docs.isNotEmpty) {
+            final referrerId = referrerQuery.docs.first.id;
+            // Award 600 S-Coins (₹60) to referrer
+            await _firestore.collection('users').doc(referrerId).set({
+              'sCoins': FieldValue.increment(600),
+            }, SetOptions(merge: true));
+
+            await _firestore
+                .collection('users')
+                .doc(referrerId)
+                .collection('wallet_transactions')
+                .add({
+              'title': 'Referral Reward (₹60 Credit)',
+              'subtitle': 'Friend completed 1st service booking!',
+              'amount': 600,
+              'type': 'credit',
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+
+            sendNotification(
+              recipientUid: referrerId,
+              title: 'Referral Bonus Credited! 🎉',
+              body: 'You earned 600 S-Coins (₹60) because your friend completed their first service!',
+            );
+          }
+        }
+
+        // Notify customer of coins earned
+        sendNotification(
+          recipientUid: customerId,
+          title: 'S-Coins Credited! 🪙',
+          body: 'You earned $rewardCoins S-Coins for completing your service!',
+        );
+      }
+
+      await refreshBookings();
+    } catch (e) {
+      debugPrint("Error completing booking and awarding rewards: $e");
     }
   }
 
