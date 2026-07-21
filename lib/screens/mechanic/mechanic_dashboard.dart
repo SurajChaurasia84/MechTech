@@ -8,6 +8,7 @@ import 'tabs/mechanic_messages_tab.dart';
 import 'manage_service_screen.dart';
 import 'package:provider/provider.dart';
 import '../../services/app_state.dart';
+import '../customer/wallet_screen.dart';
 
 class MechanicDashboard extends StatefulWidget {
   const MechanicDashboard({super.key});
@@ -59,12 +60,58 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
           ),
           automaticallyImplyLeading: false, // Don't show back button for top level dashboard
           actions: [
-            if (_currentIndex == 3)
+            if (_currentIndex == 3) ...[
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WalletScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.6),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/coin.png',
+                        width: 18,
+                        height: 18,
+                        errorBuilder: (_, _, _) => const Icon(
+                          Icons.monetization_on_rounded,
+                          color: Color(0xFFFFD700),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${appState.sCoins} Coins',
+                        style: GoogleFonts.outfit(
+                          color: const Color(0xFFFFD700),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               IconButton(
                 icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
                 tooltip: 'Switch Profile Role',
                 onPressed: () => _showRoleSwitchDialog(context),
               ),
+            ],
           ],
         ),
         body: _buildBody(),
