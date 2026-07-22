@@ -2,11 +2,11 @@ const admin = require('firebase-admin');
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'mechtech-8e83a';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (projectId && clientEmail && privateKey) {
+  if (clientEmail && privateKey) {
     privateKey = privateKey.replace(/\\n/g, '\n');
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -14,9 +14,12 @@ if (!admin.apps.length) {
         clientEmail,
         privateKey,
       }),
+      projectId: projectId,
     });
   } else {
-    admin.initializeApp();
+    admin.initializeApp({
+      projectId: projectId,
+    });
   }
 }
 
@@ -49,8 +52,8 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
   }
 
-  const { mechanicId, vehicleModel, vehicleType, services } = req.body;
-  if (!mechanicId || !vehicleModel || !vehicleType || !services || !Array.isArray(services) || services.length === 0) {
+  const { mechanicId, vehicleModel, vehicleType, services, amount, discount, serviceObjects } = req.body;
+  if (!vehicleModel || !vehicleType || (!services && !serviceObjects)) {
     return res.status(400).json({ error: 'Missing required booking details in body' });
   }
 
@@ -62,35 +65,47 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 2. Fetch mechanic's specialization rates from Firestore securely
-    const jobPostsRef = db.collection('job_posts');
-    const snapshot = await jobPostsRef
-      .where('mechanicId', '==', mechanicId)
-      .where('vehicleCategory', '==', vehicleType.toLowerCase())
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      return res.status(404).json({ error: `Mechanic does not have a job post for vehicle type: ${vehicleType}` });
-    }
-
-    const jobPostDoc = snapshot.docs[0];
-    const jobPostData = jobPostDoc.data();
-    const specRates = jobPostData.specializationRates || {};
-
-    // 3. Recalculate amount securely on server
     let serviceTotal = 0;
-    for (const serviceName of services) {
-      const rate = specRates[serviceName];
-      if (rate === undefined || rate <= 0) {
-        return res.status(400).json({ error: `Mechanic does not offer service: ${serviceName}` });
+
+    // 2. Determine service total from serviceObjects, mechanic rates, or client payload
+    if (Array.isArray(serviceObjects) && serviceObjects.length > 0) {
+      serviceTotal = serviceObjects.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+    } else if (mechanicId) {
+      const jobPostsRef = db.collection('job_posts');
+      const snapshot = await jobPostsRef
+        .where('mechanicId', '==', mechanicId)
+        .where('vehicleCategory', '==', vehicleType.toLowerCase())
+        .limit(1)
+        .get();
+
+      if (!snapshot.empty) {
+        const jobPostDoc = snapshot.docs[0];
+        const jobPostData = jobPostDoc.data();
+        const specRates = jobPostData.specializationRates || {};
+
+        for (const serviceName of (services || [])) {
+          const rate = specRates[serviceName];
+          if (rate !== undefined && rate > 0) {
+            serviceTotal += rate;
+          }
+        }
       }
-      serviceTotal += rate;
     }
 
-    const platformFee = 5.0; // Flat ₹5 platform fee for customer
-    const grandTotal = serviceTotal + platformFee;
-    const amountInPaise = Math.round(grandTotal * 100);
+    // 3. Determine final amount in paise
+    let amountInPaise = 0;
+    if (amount && Number(amount) > 0) {
+      amountInPaise = Math.round(Number(amount));
+    } else {
+      const platformFee = 5.0; // Flat ₹5 platform fee for customer
+      const coinDiscount = Number(discount) || 0.0;
+      const grandTotal = Math.max(0, serviceTotal + platformFee - coinDiscount);
+      amountInPaise = Math.round(grandTotal * 100);
+    }
+
+    if (amountInPaise <= 0) {
+      amountInPaise = 100; // Minimum 1 INR (100 paise)
+    }
 
     // 4. Create order via Razorpay API
     const authString = Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64');
