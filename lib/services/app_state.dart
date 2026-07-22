@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/service_model.dart';
+import '../utils/payment_config.dart';
 
 
 class AppState extends ChangeNotifier {
@@ -335,18 +336,41 @@ class AppState extends ChangeNotifier {
         if (vTypeStr == 'bike') vType = VehicleType.bike;
         if (vTypeStr == 'ev') vType = VehicleType.ev;
 
-        // Resolve services by ID using stored price
+        // Resolve services by ID using stored price or stored total amount
         final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final storedAmountRaw = (data['totalAmount'] as num?)?.toDouble() ?? 
+            (data['amount'] as num?)?.toDouble() ?? 
+            (data['payableAmount'] as num?)?.toDouble();
+        final storedAmount = (storedAmountRaw != null && storedAmountRaw > 5000) ? storedAmountRaw / 100.0 : storedAmountRaw;
+
         final resolvedServices = rawServices.map((s) {
-          final name = s['name'] as String? ?? '';
-          return ServiceItem(
-            id: s['id'] as String? ?? '',
-            name: name,
-            price: (s['price'] as num?)?.toDouble() ?? 0.0,
-            description: 'Professional $name services.',
-            vehicleType: vType,
-            category: name,
-          );
+          if (s is Map<String, dynamic>) {
+            final name = s['name'] as String? ?? '';
+            final price = (s['price'] as num?)?.toDouble() ?? 0.0;
+            return ServiceItem(
+              id: s['id'] as String? ?? name,
+              name: name,
+              price: price,
+              description: 'Professional $name services.',
+              vehicleType: vType,
+              category: name,
+            );
+          } else {
+            final name = s.toString();
+            double itemPrice = 0.0;
+            if (storedAmount != null && rawServices.isNotEmpty) {
+              final netTotal = (storedAmount - PaymentConfig.platformFee).clamp(0.0, double.infinity);
+              itemPrice = netTotal / rawServices.length;
+            }
+            return ServiceItem(
+              id: name,
+              name: name,
+              price: itemPrice,
+              description: 'Professional $name services.',
+              vehicleType: vType,
+              category: name,
+            );
+          }
         }).toList();
 
         // Parse bookingDate — Firestore Timestamp or fallback
@@ -374,6 +398,7 @@ class AppState extends ChangeNotifier {
           bookingLocation: data['bookingLocation'] as String?,
           paymentId: data['paymentId'] as String?,
           paymentStatus: data['paymentStatus'] as String?,
+          discount: (data['discount'] as num?)?.toDouble() ?? 0.0,
         ));
       }
     } catch (e) {
@@ -398,16 +423,39 @@ class AppState extends ChangeNotifier {
         if (vTypeStr == 'ev') vType = VehicleType.ev;
 
         final rawServices = (data['services'] as List<dynamic>?) ?? [];
+        final storedAmountRaw = (data['totalAmount'] as num?)?.toDouble() ?? 
+            (data['amount'] as num?)?.toDouble() ?? 
+            (data['payableAmount'] as num?)?.toDouble();
+        final storedAmount = (storedAmountRaw != null && storedAmountRaw > 5000) ? storedAmountRaw / 100.0 : storedAmountRaw;
+
         final resolvedServices = rawServices.map((s) {
-          final name = s['name'] as String? ?? '';
-          return ServiceItem(
-            id: s['id'] as String? ?? '',
-            name: name,
-            price: (s['price'] as num?)?.toDouble() ?? 0.0,
-            description: 'Professional $name services.',
-            vehicleType: vType,
-            category: name,
-          );
+          if (s is Map<String, dynamic>) {
+            final name = s['name'] as String? ?? '';
+            final price = (s['price'] as num?)?.toDouble() ?? 0.0;
+            return ServiceItem(
+              id: s['id'] as String? ?? name,
+              name: name,
+              price: price,
+              description: 'Professional $name services.',
+              vehicleType: vType,
+              category: name,
+            );
+          } else {
+            final name = s.toString();
+            double itemPrice = 0.0;
+            if (storedAmount != null && rawServices.isNotEmpty) {
+              final netTotal = (storedAmount - PaymentConfig.platformFee).clamp(0.0, double.infinity);
+              itemPrice = netTotal / rawServices.length;
+            }
+            return ServiceItem(
+              id: name,
+              name: name,
+              price: itemPrice,
+              description: 'Professional $name services.',
+              vehicleType: vType,
+              category: name,
+            );
+          }
         }).toList();
 
         DateTime bookingDate = DateTime.now();
@@ -434,6 +482,7 @@ class AppState extends ChangeNotifier {
           bookingLocation: data['bookingLocation'] as String?,
           paymentId: data['paymentId'] as String?,
           paymentStatus: data['paymentStatus'] as String?,
+          discount: (data['discount'] as num?)?.toDouble() ?? 0.0,
         ));
       }
     } catch (e) {
