@@ -114,17 +114,40 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       // Resolve services by parsing the returned services list
       final rawServices = (bookingMap['services'] as List<dynamic>?) ?? [];
-      final resolvedServices = rawServices.map((s) {
-        final name = s['name'] as String? ?? '';
-        return ServiceItem(
-          id: s['id'] as String? ?? '',
-          name: name,
-          price: (s['price'] as num?)?.toDouble() ?? 0.0,
-          description: 'Professional $name services.',
-          vehicleType: appState.selectedVehicleType ?? VehicleType.car,
-          category: name,
-        );
-      }).toList();
+      List<ServiceItem> resolvedServices = [];
+      if (rawServices.isNotEmpty) {
+        resolvedServices = rawServices.map((s) {
+          if (s is Map<String, dynamic>) {
+            final name = s['name'] as String? ?? '';
+            final price = (s['price'] as num?)?.toDouble() ?? 0.0;
+            return ServiceItem(
+              id: s['id'] as String? ?? name,
+              name: name,
+              price: price,
+              description: 'Professional $name services.',
+              vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+              category: name,
+            );
+          } else {
+            final name = s.toString();
+            return appState.selectedServices.firstWhere(
+              (item) => item.name.toLowerCase() == name.toLowerCase(),
+              orElse: () => ServiceItem(
+                id: name,
+                name: name,
+                price: 0.0,
+                description: 'Professional $name services.',
+                vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+                category: name,
+              ),
+            );
+          }
+        }).toList();
+      }
+
+      if (resolvedServices.isEmpty || resolvedServices.every((s) => s.price == 0.0)) {
+        resolvedServices = List.from(appState.selectedServices);
+      }
 
       final parsedBooking = ServiceBooking(
         id: bookingMap['id'] as String? ?? serverBookingId,
@@ -144,6 +167,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         bookingLocation: bookingMap['bookingLocation'] as String?,
         paymentId: bookingMap['paymentId'] as String?,
         paymentStatus: bookingMap['paymentStatus'] as String?,
+        discount: (bookingMap['discount'] as num?)?.toDouble() ?? (_useSCoins ? ((appState.sCoins / 100.0) * 10.0) : 0.0),
       );
 
       // 3. Deduct S-Coins if discount was used
@@ -244,7 +268,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       // Create Razorpay Order on Vercel Backend securely
       final orderCreationUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/create-order');
-      final orderResponse = await http.post(
+      http.Response orderResponse = await http.post(
         orderCreationUrl,
         headers: {
           'Content-Type': 'application/json',
@@ -255,6 +279,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'vehicleModel': appState.selectedVehicleModel ?? '',
           'vehicleType': appState.selectedVehicleType?.name ?? 'car',
           'services': appState.selectedServices.map((s) => s.name).toList(),
+          'serviceObjects': appState.selectedServices.map((s) => {'name': s.name, 'price': s.price}).toList(),
           'discount': coinDiscount,
           'coinDiscount': coinDiscount,
           'useSCoins': _useSCoins,
@@ -264,6 +289,30 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'payableAmount': finalAmount,
         }),
       );
+
+      // If backend fails due to mechanic service mismatch, retry general order without mechanicId
+      if (orderResponse.statusCode != 200 && widget.mechanicId != null) {
+        orderResponse = await http.post(
+          orderCreationUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'vehicleModel': appState.selectedVehicleModel ?? '',
+            'vehicleType': appState.selectedVehicleType?.name ?? 'car',
+            'services': appState.selectedServices.map((s) => s.name).toList(),
+            'serviceObjects': appState.selectedServices.map((s) => {'name': s.name, 'price': s.price}).toList(),
+            'discount': coinDiscount,
+            'coinDiscount': coinDiscount,
+            'useSCoins': _useSCoins,
+            'coinsToRedeem': coinsToRedeem,
+            'amount': payableAmountInPaise,
+            'finalAmount': finalAmount,
+            'payableAmount': finalAmount,
+          }),
+        );
+      }
 
       if (orderResponse.statusCode != 200) {
         throw Exception("Failed to generate order ID from backend: ${orderResponse.body}");
@@ -326,6 +375,13 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
 
       final token = await appState.user?.getIdToken();
 
+      // Calculate discount and coins to redeem
+      final serviceTotal = appState.selectedServices.fold<double>(0.0, (sum, item) => sum + item.price);
+      final availableCoins = appState.sCoins;
+      final maxRupeeDiscount = (availableCoins / 100.0) * 10.0;
+      final coinDiscount = _useSCoins ? (maxRupeeDiscount > serviceTotal ? serviceTotal : maxRupeeDiscount) : 0.0;
+      final coinsToRedeem = _useSCoins ? ((coinDiscount / 10.0) * 100).round() : 0;
+
       // Call new secure Vercel API for COD booking
       final codUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/create-cod-booking');
       final response = await http.post(
@@ -339,9 +395,13 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
           'vehicleModel': appState.selectedVehicleModel ?? '',
           'vehicleType': appState.selectedVehicleType?.name ?? 'car',
           'services': appState.selectedServices.map((s) => s.name).toList(),
+          'serviceObjects': appState.selectedServices.map((s) => {'name': s.name, 'price': s.price}).toList(),
           'latitude': prepResult.position?.latitude,
           'longitude': prepResult.position?.longitude,
           'bookingLocation': prepResult.address,
+          'discount': coinDiscount,
+          'useSCoins': _useSCoins,
+          'coinsToRedeem': coinsToRedeem,
         }),
       );
 
@@ -355,19 +415,42 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         throw Exception("Server did not return booking details.");
       }
 
-      // Parse booking
+      // Parse booking and resolve service prices
       final rawServices = (bookingMap['services'] as List<dynamic>?) ?? [];
-      final resolvedServices = rawServices.map((s) {
-        final name = s['name'] as String? ?? '';
-        return ServiceItem(
-          id: s['id'] as String? ?? '',
-          name: name,
-          price: (s['price'] as num?)?.toDouble() ?? 0.0,
-          description: 'Professional $name services.',
-          vehicleType: appState.selectedVehicleType ?? VehicleType.car,
-          category: name,
-        );
-      }).toList();
+      List<ServiceItem> resolvedServices = [];
+      if (rawServices.isNotEmpty) {
+        resolvedServices = rawServices.map((s) {
+          if (s is Map<String, dynamic>) {
+            final name = s['name'] as String? ?? '';
+            final price = (s['price'] as num?)?.toDouble() ?? 0.0;
+            return ServiceItem(
+              id: s['id'] as String? ?? name,
+              name: name,
+              price: price,
+              description: 'Professional $name services.',
+              vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+              category: name,
+            );
+          } else {
+            final name = s.toString();
+            return appState.selectedServices.firstWhere(
+              (item) => item.name.toLowerCase() == name.toLowerCase(),
+              orElse: () => ServiceItem(
+                id: name,
+                name: name,
+                price: 0.0,
+                description: 'Professional $name services.',
+                vehicleType: appState.selectedVehicleType ?? VehicleType.car,
+                category: name,
+              ),
+            );
+          }
+        }).toList();
+      }
+
+      if (resolvedServices.isEmpty || resolvedServices.every((s) => s.price == 0.0)) {
+        resolvedServices = List.from(appState.selectedServices);
+      }
 
       final parsedBooking = ServiceBooking(
         id: bookingMap['id'] as String? ?? '',
@@ -387,7 +470,17 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
         bookingLocation: bookingMap['bookingLocation'] as String?,
         paymentId: bookingMap['paymentId'] as String?,
         paymentStatus: bookingMap['paymentStatus'] as String?,
+        discount: (bookingMap['discount'] as num?)?.toDouble() ?? coinDiscount,
       );
+
+      // Deduct S-Coins if used
+      if (_useSCoins && coinsToRedeem > 0) {
+        await appState.redeemSCoins(
+          coinsToRedeem,
+          'Booking Discount Redemption (COD)',
+          subtitle: 'Redeemed S-Coins on COD service booking',
+        );
+      }
 
       // Trigger local list updates
       appState.refreshBookings();
