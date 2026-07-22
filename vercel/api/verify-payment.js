@@ -3,11 +3,11 @@ const admin = require('firebase-admin');
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'mechtech-8e83a';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (projectId && clientEmail && privateKey) {
+  if (clientEmail && privateKey) {
     privateKey = privateKey.replace(/\\n/g, '\n');
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -15,9 +15,12 @@ if (!admin.apps.length) {
         clientEmail,
         privateKey,
       }),
+      projectId: projectId,
     });
   } else {
-    admin.initializeApp();
+    admin.initializeApp({
+      projectId: projectId,
+    });
   }
 }
 
@@ -84,12 +87,14 @@ module.exports = async (req, res) => {
     vehicleModel,
     vehicleType,
     services,
+    serviceObjects,
+    discount,
     latitude,
     longitude,
     bookingLocation
   } = req.body;
 
-  if (!orderId || !paymentId || !signature || !mechanicId || !vehicleModel || !vehicleType || !services || !Array.isArray(services)) {
+  if (!orderId || !paymentId || !signature || !vehicleModel || !vehicleType || (!services && !serviceObjects)) {
     return res.status(400).json({ error: 'Missing required booking verification payload' });
   }
 
@@ -134,40 +139,59 @@ module.exports = async (req, res) => {
     const customerPhone = customerData.phone || '';
     const customerEmail = customerData.email || '';
 
-    const mechanicDoc = await db.collection('users').doc(mechanicId).get();
-    const mechanicData = mechanicDoc.exists ? mechanicDoc.data() : {};
-    const mechanicName = mechanicData.name || 'Mechanic';
-
-    // 4. Resolve mechanic service rates to write the exact paid prices
-    const jobPostsRef = db.collection('job_posts');
-    const snapshot = await jobPostsRef
-      .where('mechanicId', '==', mechanicId)
-      .where('vehicleCategory', '==', vehicleType.toLowerCase())
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      return res.status(404).json({ error: 'Mechanic job post not found during verification' });
+    let mechanicName = 'Unassigned';
+    if (mechanicId) {
+      const mechanicDoc = await db.collection('users').doc(mechanicId).get();
+      if (mechanicDoc.exists) {
+        mechanicName = mechanicDoc.data().name || 'Mechanic';
+      }
     }
 
-    const jobPostData = snapshot.docs[0].data();
-    const specRates = jobPostData.specializationRates || {};
-
+    // 4. Resolve service rates and prices securely
     let serviceTotal = 0;
-    const resolvedServices = services.map(serviceName => {
-      const rate = specRates[serviceName] || 0;
-      serviceTotal += rate;
-      return {
-        id: `dyn_${serviceName.hashCode || Math.random().toString(36).substring(7)}`,
+    let resolvedServices = [];
+
+    if (Array.isArray(serviceObjects) && serviceObjects.length > 0) {
+      resolvedServices = serviceObjects.map(s => {
+        const p = Number(s.price) || 0;
+        serviceTotal += p;
+        return {
+          id: s.id || `dyn_${Math.random().toString(36).substring(7)}`,
+          name: s.name || 'Service',
+          price: p,
+        };
+      });
+    } else if (mechanicId) {
+      const jobPostsRef = db.collection('job_posts');
+      const snapshot = await jobPostsRef
+        .where('mechanicId', '==', mechanicId)
+        .where('vehicleCategory', '==', vehicleType.toLowerCase())
+        .limit(1)
+        .get();
+
+      const specRates = !snapshot.empty ? (snapshot.docs[0].data().specializationRates || {}) : {};
+      resolvedServices = (services || []).map(serviceName => {
+        const rate = specRates[serviceName] || 0;
+        serviceTotal += rate;
+        return {
+          id: `dyn_${Math.random().toString(36).substring(7)}`,
+          name: serviceName,
+          price: rate,
+        };
+      });
+    } else {
+      resolvedServices = (services || []).map(serviceName => ({
+        id: `dyn_${Math.random().toString(36).substring(7)}`,
         name: serviceName,
-        price: rate,
-      };
-    });
+        price: 0,
+      }));
+    }
 
     const platformFee = 5.0; // Flat ₹5 platform fee for customer
+    const coinDiscount = Number(discount) || 0.0;
+    const grandTotal = Math.max(0, serviceTotal + platformFee - coinDiscount);
     const commission = serviceTotal * 0.07; // 7% deduction from mechanic charges
-    const grandTotal = serviceTotal + platformFee; // Total paid by customer
-    const mechanicEarnings = serviceTotal - commission; // Mechanic net earnings
+    const mechanicEarnings = Math.max(0, serviceTotal - commission); // Mechanic net earnings
     const ownerRevenue = platformFee + commission; // Total owner revenue (₹5 + 7%)
 
     // Generate Booking ID (MT- style)
@@ -183,13 +207,14 @@ module.exports = async (req, res) => {
       vehicleModel: vehicleModel,
       serviceTotal: serviceTotal,
       platformFee: platformFee,
+      discount: coinDiscount,
       commission: commission,
       totalAmount: grandTotal,
       mechanicEarnings: mechanicEarnings,
       ownerRevenue: ownerRevenue,
       bookingDate: admin.firestore.FieldValue.serverTimestamp(),
       status: 'Pending',
-      mechanicId: mechanicId,
+      mechanicId: mechanicId || null,
       mechanicName: mechanicName,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
