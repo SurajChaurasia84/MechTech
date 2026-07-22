@@ -222,6 +222,16 @@ class InvoiceHelper {
                             pw.Text('Rs. ${platformFee.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                           ],
                         ),
+                        if (booking.discount > 0) ...[
+                          pw.SizedBox(height: 4),
+                          pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text('S-Coins Discount:', style: pw.TextStyle(fontSize: 9, color: PdfColor.fromHex('#D4AF37'))),
+                              pw.Text('- Rs. ${booking.discount.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromHex('#D4AF37'))),
+                            ],
+                          ),
+                        ],
                         pw.SizedBox(height: 4),
                         pw.Divider(color: PdfColors.grey300),
                         pw.SizedBox(height: 4),
