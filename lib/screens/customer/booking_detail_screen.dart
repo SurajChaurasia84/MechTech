@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import '../../utils/invoice_helper.dart';
+import 'package:mechtech/screens/customer/mechanic_reviews_screen.dart';
 import 'mechanic_profile_details_screen.dart';
 
 class BookingDetailScreen extends StatefulWidget {
@@ -49,8 +50,30 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     super.dispose();
   }
 
+  int? _userRating;
+  String? _userReview;
+  bool _hasReviewed = false;
+
   Future<void> _fetchRealMechanicProfile() async {
     final mechId = widget.booking.mechanicId;
+    
+    // Check if review exists on booking
+    try {
+      final bDoc = await FirebaseFirestore.instance.collection('bookings').doc(widget.booking.id).get();
+      if (bDoc.exists && mounted) {
+        final bData = bDoc.data()!;
+        if (bData['hasReviewed'] == true || bData['userRating'] != null) {
+          setState(() {
+            _hasReviewed = true;
+            _userRating = (bData['userRating'] as num?)?.toInt() ?? 5;
+            _userReview = bData['userReview'] as String? ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching booking review data: $e");
+    }
+
     if (mechId == null || mechId.isEmpty) return;
 
     try {
@@ -66,6 +89,293 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     } catch (e) {
       debugPrint("Error fetching real mechanic profile: $e");
     }
+  }
+
+  void _showRatingBottomSheet() {
+    int currentRating = _userRating ?? 0;
+    final textController = TextEditingController(text: _userReview ?? '');
+    bool isSubmitting = false;
+    String? validationError;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161426),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF302B53),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Rate Your Mechanic',
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _mechanicName ?? widget.booking.mechanicName ?? 'Mechanic',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: const Color(0xFF8B88A5),
+                    ),
+                  ),
+
+                  // Inline Validation Error Message (no border, no bg)
+                  if (validationError != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF5252), size: 16),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            validationError!,
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFFF5252),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // 5 Interactive Rating Stars
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starValue = index + 1;
+                      final isFilled = starValue <= currentRating;
+                      return IconButton(
+                        iconSize: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          isFilled ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: isFilled ? const Color(0xFFFFD700) : const Color(0xFF4A4470),
+                        ),
+                        onPressed: () {
+                          setModalState(() {
+                            currentRating = starValue;
+                            validationError = null;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    currentRating == 5
+                        ? 'Excellent Service! 🔥'
+                        : currentRating == 4
+                            ? 'Very Good 👍'
+                            : currentRating == 3
+                                ? 'Good Experience 🙂'
+                                : currentRating == 2
+                                    ? 'Below Average 😐'
+                                    : currentRating == 1
+                                        ? 'Needs Improvement 👎'
+                                        : 'Tap stars above to rate',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: currentRating > 0 ? const Color(0xFFFFD700) : const Color(0xFF8B88A5),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Feedback TextField with character limit
+                  TextField(
+                    controller: textController,
+                    maxLength: 250,
+                    maxLines: 3,
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                    onChanged: (_) {
+                      if (validationError != null) {
+                        setModalState(() => validationError = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Share your experience or feedback for the mechanic (Required)...',
+                      hintStyle: GoogleFonts.inter(color: const Color(0xFF635E85), fontSize: 13),
+                      filled: true,
+                      fillColor: const Color(0xFF0D0B18),
+                      counterStyle: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 11),
+                      contentPadding: const EdgeInsets.all(14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Submit Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              if (currentRating == 0) {
+                                setModalState(() {
+                                  validationError = 'Please select a star rating (1-5 stars) required.';
+                                });
+                                return;
+                              }
+
+                              final reviewText = textController.text.trim();
+                              if (reviewText.isEmpty) {
+                                setModalState(() {
+                                  validationError = 'Please write a feedback before submitting.';
+                                });
+                                return;
+                              }
+
+                              setModalState(() {
+                                validationError = null;
+                                isSubmitting = true;
+                              });
+                              try {
+                                final reviewText = textController.text.trim();
+                                final bId = widget.booking.id;
+                                final mId = widget.booking.mechanicId;
+
+                                final updateData = {
+                                  'hasReviewed': true,
+                                  'userRating': currentRating,
+                                  'userReview': reviewText,
+                                  'reviewDate': FieldValue.serverTimestamp(),
+                                };
+
+                                await FirebaseFirestore.instance.collection('bookings').doc(bId).update(updateData);
+                                if (widget.booking.customerId != null) {
+                                  await FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(widget.booking.customerId)
+                                      .collection('bookings')
+                                      .doc(bId)
+                                      .update(updateData);
+                                }
+
+                                if (mId != null && mId.isNotEmpty) {
+                                  final cId = widget.booking.customerId;
+                                  final revSnap = await FirebaseFirestore.instance
+                                      .collection('reviews')
+                                      .where('mechanicId', isEqualTo: mId)
+                                      .where('customerId', isEqualTo: cId)
+                                      .get();
+
+                                  final rData = {
+                                    'bookingId': bId,
+                                    'mechanicId': mId,
+                                    'customerId': cId,
+                                    'customerName': widget.booking.customerName,
+                                    'rating': currentRating,
+                                    'comment': reviewText,
+                                    'updatedAt': FieldValue.serverTimestamp(),
+                                  };
+
+                                  if (revSnap.docs.isNotEmpty) {
+                                    await FirebaseFirestore.instance
+                                        .collection('reviews')
+                                        .doc(revSnap.docs.first.id)
+                                        .update(rData);
+                                  } else {
+                                    rData['createdAt'] = FieldValue.serverTimestamp();
+                                    await FirebaseFirestore.instance.collection('reviews').add(rData);
+                                  }
+                                }
+
+                                if (mounted) {
+                                  setState(() {
+                                    _hasReviewed = true;
+                                    _userRating = currentRating;
+                                    _userReview = reviewText;
+                                  });
+                                }
+
+                                if (Navigator.of(modalContext).canPop()) {
+                                  Navigator.of(modalContext).pop();
+                                }
+
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Thank you! Your feedback has been submitted.'),
+                                      backgroundColor: Color(0xFF00E676),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint("Error submitting review: $e");
+                                setModalState(() => isSubmitting = false);
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E676),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                            )
+                          : Text(
+                              _hasReviewed ? 'Update Review' : 'Submit Review',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -318,6 +628,64 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                               ),
                             ],
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 3. Simple Rating Text Button with Stars below profile row
+                _divider(),
+                InkWell(
+                  onTap: () {
+                    if (booking.mechanicId != null && booking.mechanicId!.isNotEmpty) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MechanicReviewsScreen(
+                            mechanicId: booking.mechanicId!,
+                            mechanicName: _mechanicName ?? booking.mechanicName ?? 'Mechanic',
+                            mechanicPhotoUrl: _mechanicPhotoUrl,
+                            booking: booking,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showRatingBottomSheet();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(
+                                5,
+                                (idx) => Icon(
+                                  (idx < (_userRating ?? 0)) ? Icons.star_rounded : Icons.star_outline_rounded,
+                                  color: (idx < (_userRating ?? 0)) ? const Color(0xFFFFD700) : const Color(0xFF635E85),
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _hasReviewed ? 'Your Rating (${_userRating ?? 5}★)' : 'Rate Mechanic',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFFFD700),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFFFFD700),
+                          size: 20,
                         ),
                       ],
                     ),
