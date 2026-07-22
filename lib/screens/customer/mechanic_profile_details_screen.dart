@@ -423,13 +423,20 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
               const SizedBox(height: 16),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundImage: NetworkImage(mech['photo']),
-                    backgroundColor: const Color(0xFF0D0B18),
-                    child: mech['photo'] == null
-                        ? const Icon(Icons.person, color: Color(0xFF00E676), size: 32)
-                        : null,
+                  Builder(
+                    builder: (_) {
+                      final String? photoUrl = mech['photo'] as String? ?? mech['photoUrl'] as String?;
+                      return CircleAvatar(
+                        radius: 32,
+                        backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                            ? NetworkImage(photoUrl)
+                            : null,
+                        backgroundColor: const Color(0xFF0D0B18),
+                        child: (photoUrl == null || photoUrl.isEmpty)
+                            ? const Icon(Icons.person, color: Color(0xFF00E676), size: 32)
+                            : null,
+                      );
+                    },
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -514,13 +521,20 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         titleSpacing: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: NetworkImage(widget.mechanic['photo']),
-              backgroundColor: const Color(0xFF0D0B18),
-              child: widget.mechanic['photo'] == null
-                  ? const Icon(Icons.person, color: Color(0xFF00E676), size: 18)
-                  : null,
+            Builder(
+              builder: (_) {
+                final String? appbarPhoto = widget.mechanic['photo'] as String? ?? widget.mechanic['photoUrl'] as String?;
+                return CircleAvatar(
+                  radius: 18,
+                  backgroundImage: (appbarPhoto != null && appbarPhoto.isNotEmpty)
+                      ? NetworkImage(appbarPhoto)
+                      : null,
+                  backgroundColor: const Color(0xFF0D0B18),
+                  child: (appbarPhoto == null || appbarPhoto.isEmpty)
+                      ? const Icon(Icons.person, color: Color(0xFF00E676), size: 18)
+                      : null,
+                );
+              },
             ),
             const SizedBox(width: 10),
             Expanded(
