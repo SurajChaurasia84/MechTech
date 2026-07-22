@@ -241,13 +241,13 @@ class ProfileTab extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   letterSpacing: 0.5,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'Version 1.0.0 (1)',
+                'Version 2.1.0 (6)',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: const Color(0xFF8B88A5).withOpacity(0.8),
