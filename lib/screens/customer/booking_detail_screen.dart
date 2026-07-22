@@ -7,13 +7,50 @@ import '../../services/app_state.dart';
 import '../../utils/invoice_helper.dart';
 import 'mechanic_profile_details_screen.dart';
 
-class BookingDetailScreen extends StatelessWidget {
+class BookingDetailScreen extends StatefulWidget {
   final ServiceBooking booking;
 
   const BookingDetailScreen({super.key, required this.booking});
 
   @override
+  State<BookingDetailScreen> createState() => _BookingDetailScreenState();
+}
+
+class _BookingDetailScreenState extends State<BookingDetailScreen> {
+  String? _mechanicName;
+  String? _mechanicPhotoUrl;
+  Map<String, dynamic>? _mechanicData;
+
+  @override
+  void initState() {
+    super.initState();
+    _mechanicName = widget.booking.mechanicName;
+    _mechanicPhotoUrl = widget.booking.mechanicPhotoUrl;
+    _fetchRealMechanicProfile();
+  }
+
+  Future<void> _fetchRealMechanicProfile() async {
+    final mechId = widget.booking.mechanicId;
+    if (mechId == null || mechId.isEmpty) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(mechId).get();
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        setState(() {
+          _mechanicData = data;
+          _mechanicName = data['name'] ?? data['shopName'] ?? widget.booking.mechanicName;
+          _mechanicPhotoUrl = data['photoUrl'] ?? data['photo'] ?? data['profilePhotoUrl'] ?? data['mechanicPhotoUrl'] ?? widget.booking.mechanicPhotoUrl;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching real mechanic profile: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final booking = widget.booking;
     Color statusColor = const Color(0xFFFF9100);
     if (booking.status == 'In Progress') {
       statusColor = const Color(0xFF00B0FF);
@@ -132,16 +169,12 @@ class BookingDetailScreen extends StatelessWidget {
                   onTap: () async {
                     if (booking.mechanicId != null && booking.mechanicId!.isNotEmpty) {
                       try {
-                        final doc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(booking.mechanicId!)
-                            .get();
-                        final mechMap = doc.exists ? Map<String, dynamic>.from(doc.data()!) : <String, dynamic>{};
+                        final mechMap = Map<String, dynamic>.from(_mechanicData ?? {});
                         mechMap['mechanicId'] = booking.mechanicId;
                         mechMap['uid'] = booking.mechanicId;
-                        mechMap['name'] = mechMap['name'] ?? booking.mechanicName ?? 'Mechanic';
-                        mechMap['title'] = mechMap['shopName'] ?? mechMap['workshopName'] ?? mechMap['title'] ?? mechMap['name'] ?? 'Mechanic Specialist';
-                        mechMap['photo'] = mechMap['photoUrl'] ?? mechMap['mechanicPhotoUrl'] ?? mechMap['photo'] ?? booking.mechanicPhotoUrl ?? '';
+                        mechMap['name'] = _mechanicName ?? booking.mechanicName ?? 'Mechanic';
+                        mechMap['title'] = mechMap['shopName'] ?? mechMap['workshopName'] ?? mechMap['title'] ?? _mechanicName ?? 'Mechanic Specialist';
+                        mechMap['photo'] = _mechanicPhotoUrl ?? mechMap['photoUrl'] ?? mechMap['mechanicPhotoUrl'] ?? mechMap['photo'] ?? booking.mechanicPhotoUrl ?? '';
                         if (context.mounted) {
                           Navigator.of(context).push(
                             MaterialPageRoute(
@@ -169,10 +202,10 @@ class BookingDetailScreen extends StatelessWidget {
                         CircleAvatar(
                           radius: 20,
                           backgroundColor: const Color(0xFF00B0FF).withValues(alpha: 0.15),
-                          backgroundImage: (booking.mechanicPhotoUrl != null && booking.mechanicPhotoUrl!.isNotEmpty)
-                              ? NetworkImage(booking.mechanicPhotoUrl!)
+                          backgroundImage: (_mechanicPhotoUrl != null && _mechanicPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(_mechanicPhotoUrl!)
                               : null,
-                          child: (booking.mechanicPhotoUrl == null || booking.mechanicPhotoUrl!.isEmpty)
+                          child: (_mechanicPhotoUrl == null || _mechanicPhotoUrl!.isEmpty)
                               ? const Icon(Icons.person_rounded, color: Color(0xFF00B0FF), size: 22)
                               : null,
                         ),
@@ -182,7 +215,7 @@ class BookingDetailScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                booking.mechanicName ?? 'Searching...',
+                                _mechanicName ?? booking.mechanicName ?? 'Searching...',
                                 style: GoogleFonts.outfit(
                                   color: Colors.white,
                                   fontSize: 16,
