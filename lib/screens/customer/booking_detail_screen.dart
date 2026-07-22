@@ -263,40 +263,104 @@ class BookingDetailScreen extends StatelessWidget {
               ],
             ),
 
-            // Total Amount
+            // Payment Summary Breakdown Card
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF00E676).withValues(alpha: 0.15),
-                    const Color(0xFF00B0FF).withValues(alpha: 0.08),
-                  ],
-                ),
+                color: const Color(0xFF161426),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(0xFF00E676).withValues(alpha: 0.3),
+                  color: const Color(0xFF302B53),
+                  width: 1.2,
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  Text(
-                    'Total Amount',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Service Charges',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF8B88A5),
+                        ),
+                      ),
+                      Text(
+                        '₹${booking.serviceTotal.toStringAsFixed(2)}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '₹${booking.totalAmount.toStringAsFixed(2)}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 22,
-                      color: const Color(0xFF00E676),
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Platform Charges',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF8B88A5),
+                        ),
+                      ),
+                      Text(
+                        '₹${booking.platformFee.toStringAsFixed(2)}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (booking.discount > 0) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'S-Coin Discount',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFFFFD700),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '-₹${booking.discount.toStringAsFixed(2)}',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            color: const Color(0xFFFFD700),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
+                  ],
+                  const Divider(color: Color(0xFF302B53), height: 20, thickness: 1.2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Amount',
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '₹${booking.totalAmount.toStringAsFixed(2)}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          color: const Color(0xFF00E676),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
