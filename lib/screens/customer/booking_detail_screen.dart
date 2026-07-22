@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../models/service_model.dart';
 import '../../services/app_state.dart';
 import '../../utils/invoice_helper.dart';
+import 'mechanic_profile_details_screen.dart';
 
 class BookingDetailScreen extends StatelessWidget {
   final ServiceBooking booking;
@@ -81,6 +83,7 @@ class BookingDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             _infoCard(
               children: [
+                // 1. Header: Vehicle Icon + Model + Type
                 Row(
                   children: [
                     Container(
@@ -122,16 +125,125 @@ class BookingDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (booking.mechanicName != null) ...[
-                  _divider(),
-                  _buildDetailRow(
-                    'Assigned Mechanic',
-                    booking.mechanicName ?? 'Searching...',
+
+                // 2. Mechanic Profile + Name Row (clickable with 'Tap to view detail')
+                _divider(),
+                InkWell(
+                  onTap: () async {
+                    if (booking.mechanicId != null && booking.mechanicId!.isNotEmpty) {
+                      try {
+                        final doc = await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(booking.mechanicId!)
+                            .get();
+                        final mechMap = doc.exists ? Map<String, dynamic>.from(doc.data()!) : <String, dynamic>{};
+                        mechMap['mechanicId'] = booking.mechanicId;
+                        mechMap['uid'] = booking.mechanicId;
+                        mechMap['name'] = mechMap['name'] ?? booking.mechanicName ?? 'Mechanic';
+                        mechMap['title'] = mechMap['shopName'] ?? mechMap['workshopName'] ?? mechMap['title'] ?? mechMap['name'] ?? 'Mechanic Specialist';
+                        mechMap['photo'] = mechMap['photoUrl'] ?? mechMap['mechanicPhotoUrl'] ?? mechMap['photo'] ?? booking.mechanicPhotoUrl ?? '';
+                        if (context.mounted) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MechanicProfileDetailsScreen(mechanic: mechMap),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint("Error opening mechanic details: $e");
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Mechanic details will be available once assigned.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: const Color(0xFF00B0FF).withValues(alpha: 0.15),
+                          backgroundImage: (booking.mechanicPhotoUrl != null && booking.mechanicPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(booking.mechanicPhotoUrl!)
+                              : null,
+                          child: (booking.mechanicPhotoUrl == null || booking.mechanicPhotoUrl!.isEmpty)
+                              ? const Icon(Icons.person_rounded, color: Color(0xFF00B0FF), size: 22)
+                              : null,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                booking.mechanicName ?? 'Searching...',
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Tap to view detail',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF8B88A5),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: Color(0xFF8B88A5),
+                                    size: 9,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-                if (booking.bookingLocation != null) ...[
-                  _divider(),
-                  _buildDetailRow('Service Location', booking.bookingLocation!),
+                ),
+
+                // 3. Location Row (simple small icon without background box)
+                if (booking.bookingLocation != null && booking.bookingLocation!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2, left: 4),
+                        child: Icon(
+                          Icons.location_on_rounded,
+                          color: Color(0xFFFF9100),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          booking.bookingLocation!,
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF8B88A5),
+                            fontSize: 12,
+                            fontWeight: FontWeight.normal,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
