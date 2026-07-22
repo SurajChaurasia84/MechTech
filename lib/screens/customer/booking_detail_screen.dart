@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,6 +21,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   String? _mechanicName;
   String? _mechanicPhotoUrl;
   Map<String, dynamic>? _mechanicData;
+  Timer? _swapTimer;
+  int _swapIndex = 0;
 
   @override
   void initState() {
@@ -27,6 +30,23 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     _mechanicName = widget.booking.mechanicName;
     _mechanicPhotoUrl = widget.booking.mechanicPhotoUrl;
     _fetchRealMechanicProfile();
+    _startSwapTimer();
+  }
+
+  void _startSwapTimer() {
+    _swapTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        setState(() {
+          _swapIndex = (_swapIndex + 1) % 2;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _swapTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchRealMechanicProfile() async {
@@ -223,23 +243,78 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  Text(
-                                    'Tap to view detail',
-                                    style: GoogleFonts.inter(
-                                      color: const Color(0xFF8B88A5),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 3),
-                                  const Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    color: Color(0xFF8B88A5),
-                                    size: 9,
-                                  ),
-                                ],
+                              SizedBox(
+                                height: 18,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 450),
+                                  switchOutCurve: const Interval(0.0, 0.7, curve: Curves.easeInCubic),
+                                  switchInCurve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+                                  transitionBuilder: (Widget child, Animation<double> animation) {
+                                    final currentKey = _swapIndex == 0 ? 'tap_detail' : 'location_detail';
+                                    final isIncoming = (child.key as ValueKey<String>?)?.value == currentKey;
+                                    
+                                    final inAnimation = Tween<Offset>(
+                                      begin: const Offset(0.0, 1.0),
+                                      end: Offset.zero,
+                                    ).animate(animation);
+
+                                    final outAnimation = Tween<Offset>(
+                                      begin: const Offset(0.0, -1.0),
+                                      end: Offset.zero,
+                                    ).animate(animation);
+
+                                    return SlideTransition(
+                                      position: isIncoming ? inAnimation : outAnimation,
+                                      child: FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: (_swapIndex == 0 || booking.bookingLocation == null || booking.bookingLocation!.isEmpty)
+                                      ? Row(
+                                          key: const ValueKey('tap_detail'),
+                                          children: [
+                                            Text(
+                                              'Tap to view details',
+                                              style: GoogleFonts.inter(
+                                                color: const Color(0xFF8B88A5),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            const Icon(
+                                              Icons.arrow_forward_ios_rounded,
+                                              color: Color(0xFF8B88A5),
+                                              size: 9,
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          key: const ValueKey('location_detail'),
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on_rounded,
+                                              color: Color(0xFFFF9100),
+                                              size: 12,
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Expanded(
+                                              child: Text(
+                                                booking.bookingLocation!,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: GoogleFonts.inter(
+                                                  color: const Color(0xFF8B88A5),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
                               ),
                             ],
                           ),
@@ -248,36 +323,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                     ),
                   ),
                 ),
-
-                // 3. Location Row (simple small icon without background box)
-                if (booking.bookingLocation != null && booking.bookingLocation!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2, left: 4),
-                        child: Icon(
-                          Icons.location_on_rounded,
-                          color: Color(0xFFFF9100),
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          booking.bookingLocation!,
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF8B88A5),
-                            fontSize: 12,
-                            fontWeight: FontWeight.normal,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 16),
