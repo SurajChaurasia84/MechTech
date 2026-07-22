@@ -7,6 +7,7 @@ import '../../services/app_state.dart';
 import '../../models/service_model.dart';
 import '../chat/chat_detail_screen.dart';
 import 'booking_summary_screen.dart';
+import 'mechanic_reviews_screen.dart';
 
 class MechanicProfileDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> mechanic;
@@ -231,6 +232,23 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
   }
 
   void _proceedToBooking() {
+    final appState = context.read<AppState>();
+    final currentUserId = appState.user?.uid;
+    final mechanicId = widget.mechanic['mechanicId'] as String? ??
+        widget.mechanic['uid'] as String? ??
+        widget.mechanic['id'] as String?;
+
+    if (currentUserId != null && mechanicId != null && currentUserId == mechanicId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Self-booking blocked. You cannot book your own service."),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (_selectedServices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -241,13 +259,10 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
       );
       return;
     }
-
-    final appState = context.read<AppState>();
     
     // Set selected services in AppState
     appState.setSelectedServices(_selectedServices);
 
-    final mechanicId = widget.mechanic['mechanicId'] as String?;
     final mechanicName = widget.mechanic['name'] as String?;
 
     Navigator.of(context).push(
@@ -468,11 +483,6 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Text(
-                mech['desc'] ?? 'No bio provided.',
-                style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13, height: 1.4),
-              ),
               if (cats.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -497,7 +507,48 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
                   )).toList(),
                 ),
               ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  final mechanicId = widget.mechanic['mechanicId'] as String? ??
+                      widget.mechanic['uid'] as String? ??
+                      widget.mechanic['id'] as String? ?? '';
+                  final mechanicName = widget.mechanic['name'] as String? ?? 'Mechanic';
+                  final mechanicPhoto = widget.mechanic['photo'] as String? ?? widget.mechanic['photoUrl'] as String?;
+
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MechanicReviewsScreen(
+                        mechanicId: mechanicId,
+                        mechanicName: mechanicName,
+                        mechanicPhotoUrl: mechanicPhoto,
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD700),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.star_rounded, color: Colors.black),
+                label: Text(
+                  'View Ratings & Reviews',
+                  style: GoogleFonts.outfit(
+                    color: Colors.black,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         );
