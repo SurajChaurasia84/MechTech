@@ -112,6 +112,7 @@ class ServiceBooking {
   final String status;
   final String? mechanicId;
   final String? mechanicName;
+  final String? mechanicPhotoUrl;
   final double? latitude;
   final double? longitude;
   final String? bookingLocation;
@@ -132,6 +133,7 @@ class ServiceBooking {
     this.status = 'Pending',
     this.mechanicId,
     this.mechanicName,
+    this.mechanicPhotoUrl,
     this.latitude,
     this.longitude,
     this.bookingLocation,
