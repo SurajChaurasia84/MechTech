@@ -39,7 +39,10 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
   }
 
   Future<void> _fetchMechanicJobPosts() async {
-    final mechanicId = widget.mechanic['mechanicId'] as String?;
+    final mechanicId = widget.mechanic['mechanicId'] as String? ??
+        widget.mechanic['uid'] as String? ??
+        widget.mechanic['id'] as String?;
+
     if (mechanicId == null || mechanicId.isEmpty) {
       _processPosts([]);
       return;
@@ -56,10 +59,10 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         final data = doc.data();
         loaded.add({
           'id': doc.id,
-          'mechanicId': data['mechanicId'],
-          'title': data['title'] ?? 'Specialist Mechanic',
-          'mechanicName': data['mechanicName'] ?? widget.mechanic['name'],
-          'photo': data['mechanicPhotoUrl'] ?? widget.mechanic['photo'],
+          'mechanicId': data['mechanicId'] ?? mechanicId,
+          'title': data['title'] ?? widget.mechanic['title'] ?? widget.mechanic['shopName'] ?? 'Specialist Mechanic',
+          'mechanicName': data['mechanicName'] ?? widget.mechanic['name'] ?? widget.mechanic['mechanicName'] ?? 'Mechanic',
+          'photo': data['mechanicPhotoUrl'] ?? data['photoUrl'] ?? widget.mechanic['photo'] ?? widget.mechanic['photoUrl'],
           'vehicleCategory': (data['vehicleCategory'] as String? ?? 'car').toLowerCase(),
           'vehicleModel': data['vehicleModel'] as String?,
           'categories': (data['categories'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
@@ -67,7 +70,7 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
           'specializationSubCategories': Map<String, List<dynamic>>.from(data['specializationSubCategories'] ?? {}),
           'desc': data['desc'] ?? '',
           'experience': data['experience'] ?? '',
-          'location': data['location'] ?? '',
+          'location': data['location'] ?? widget.mechanic['location'] ?? '',
         });
       }
 
