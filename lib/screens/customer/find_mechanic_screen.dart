@@ -1184,6 +1184,20 @@ class _QuickBookingSheetState extends State<QuickBookingSheet> {
                       borderRadius: BorderRadius.circular(16),
                       onTap: _selectedModel != null && _selectedServices.isNotEmpty && !_isBooking
                           ? () {
+                              final currentUserId = appState.user?.uid;
+                              final mechanicId = widget.mechanic['mechanicId'] as String? ?? widget.mechanic['uid'] as String?;
+
+                              if (currentUserId != null && mechanicId != null && currentUserId == mechanicId) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Self-booking blocked. You cannot book your own service."),
+                                    backgroundColor: Colors.redAccent,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                return;
+                              }
+
                               setState(() => _isBooking = true);
 
                               // Setup the AppState selections so submitBooking registers it
