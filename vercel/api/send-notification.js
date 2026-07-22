@@ -3,11 +3,11 @@ const admin = require('firebase-admin');
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'mechtech-8e83a';
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (projectId && clientEmail && privateKey) {
+  if (clientEmail && privateKey) {
     privateKey = privateKey.replace(/\\n/g, '\n');
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -15,9 +15,12 @@ if (!admin.apps.length) {
         clientEmail,
         privateKey,
       }),
+      projectId: projectId,
     });
   } else {
-    admin.initializeApp();
+    admin.initializeApp({
+      projectId: projectId,
+    });
   }
 }
 
