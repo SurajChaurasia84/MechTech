@@ -117,6 +117,7 @@ class ServiceBooking {
   final String? bookingLocation;
   final String? paymentId;
   final String? paymentStatus;
+  final double discount;
 
   ServiceBooking({
     required this.id,
@@ -136,11 +137,12 @@ class ServiceBooking {
     this.bookingLocation,
     this.paymentId,
     this.paymentStatus,
+    this.discount = 0.0,
   });
 
   double get serviceTotal => selectedServices.fold(0.0, (sum, item) => sum + item.price);
   double get commission => serviceTotal * PaymentConfig.commissionRate;
   double get platformFee => PaymentConfig.platformFee;
-  double get totalAmount => serviceTotal + platformFee;
+  double get totalAmount => (serviceTotal + platformFee - discount).clamp(0.0, double.infinity);
   double get mechanicEarnings => serviceTotal - commission;
 }
