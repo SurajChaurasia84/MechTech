@@ -20,6 +20,19 @@ class MechanicDashboard extends StatefulWidget {
 class _MechanicDashboardState extends State<MechanicDashboard> {
   int _currentIndex = 0;
 
+  // Chat selection state
+  Set<String> _selectedChatRoomIds = {};
+  VoidCallback? _clearChatSelection;
+  Function(BuildContext)? _confirmChatDelete;
+
+  void _switchTab(int index) {
+    if (index != 2 && _selectedChatRoomIds.isNotEmpty) {
+      _clearChatSelection?.call();
+      _selectedChatRoomIds.clear();
+    }
+    setState(() => _currentIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -35,32 +48,55 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF161426),
           elevation: 0,
-          title: Row(
-            children: [
-              if (_currentIndex == 0) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.asset(
-                    'assets/icon.png',
-                    height: 28,
-                    width: 28,
-                  ),
+          title: (_currentIndex == 2 && _selectedChatRoomIds.isNotEmpty)
+              ? Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                      onPressed: () {
+                        _clearChatSelection?.call();
+                        setState(() => _selectedChatRoomIds.clear());
+                      },
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${_selectedChatRoomIds.length} selected)',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    if (_currentIndex == 0) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          height: 28,
+                          width: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Text(
+                      _getAppBarTitle(),
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-              ],
-              Text(
-                _getAppBarTitle(),
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
           automaticallyImplyLeading: false, // Don't show back button for top level dashboard
           actions: [
-            if (_currentIndex == 3) ...[
+            if (_currentIndex == 2 && _selectedChatRoomIds.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 24),
+                tooltip: 'Delete Selected Chats',
+                onPressed: () => _confirmChatDelete?.call(context),
+              )
+            else if (_currentIndex == 3) ...[
               GestureDetector(
                 onTap: () {
                   Navigator.of(context).push(
@@ -127,7 +163,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
             decoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
-                  color: const Color(0xFF302B53).withOpacity(0.4),
+                  color: const Color(0xFF302B53).withValues(alpha: 0.4),
                   width: 1.0,
                 ),
               ),
@@ -138,7 +174,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                 // Jobs button
                 Expanded(
                   child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 0),
+                    onTap: () => _switchTab(0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -162,7 +198,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                 // Earnings button
                 Expanded(
                   child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 1),
+                    onTap: () => _switchTab(1),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -188,7 +224,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                  // Messages button
                 Expanded(
                   child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 2),
+                    onTap: () => _switchTab(2),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -240,7 +276,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                 // Profile button
                 Expanded(
                   child: InkWell(
-                    onTap: () => setState(() => _currentIndex = 3),
+                    onTap: () => _switchTab(3),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -313,7 +349,17 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
       case 1:
         return const MechanicEarningsTab();
       case 2:
-        return const MechanicMessagesTab();
+        return MechanicMessagesTab(
+          onSelectionChanged: (selectedIds, clearFn, deleteFn) {
+            if (mounted) {
+              setState(() {
+                _selectedChatRoomIds = Set.from(selectedIds);
+                _clearChatSelection = clearFn;
+                _confirmChatDelete = deleteFn;
+              });
+            }
+          },
+        );
       case 3:
         return const MechanicProfileTab();
       default:
@@ -369,7 +415,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: tempSelectedRole == 'customer'
-                            ? const Color(0xFF00E676).withOpacity(0.08)
+                            ? const Color(0xFF00E676).withValues(alpha: 0.08)
                             : const Color(0xFF0D0B18),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
@@ -430,7 +476,7 @@ class _MechanicDashboardState extends State<MechanicDashboard> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: tempSelectedRole == 'mechanic'
-                            ? const Color(0xFF00B0FF).withOpacity(0.08)
+                            ? const Color(0xFF00B0FF).withValues(alpha: 0.08)
                             : const Color(0xFF0D0B18),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
