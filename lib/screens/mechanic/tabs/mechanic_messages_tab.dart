@@ -6,13 +6,117 @@ import '../../../services/app_state.dart';
 import '../../chat/chat_detail_screen.dart';
 
 class MechanicMessagesTab extends StatefulWidget {
-  const MechanicMessagesTab({super.key});
+  final Function(
+    Set<String> selectedRoomIds,
+    VoidCallback clearSelection,
+    Function(BuildContext context) confirmDelete,
+  )? onSelectionChanged;
+
+  const MechanicMessagesTab({super.key, this.onSelectionChanged});
 
   @override
   State<MechanicMessagesTab> createState() => _MechanicMessagesTabState();
 }
 
 class _MechanicMessagesTabState extends State<MechanicMessagesTab> {
+  final Set<String> _selectedRoomIds = {};
+
+  void _toggleSelection(String roomId) {
+    setState(() {
+      if (_selectedRoomIds.contains(roomId)) {
+        _selectedRoomIds.remove(roomId);
+      } else {
+        _selectedRoomIds.add(roomId);
+      }
+    });
+    _notifyParentSelection();
+  }
+
+  void _notifyParentSelection() {
+    widget.onSelectionChanged?.call(
+      _selectedRoomIds,
+      () {
+        if (mounted) {
+          setState(() {
+            _selectedRoomIds.clear();
+          });
+        }
+      },
+      _confirmDeleteSelectedChats,
+    );
+  }
+
+  void _confirmDeleteSelectedChats(BuildContext context) {
+    if (_selectedRoomIds.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161426),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          _selectedRoomIds.length == 1 ? 'Delete Chat?' : 'Delete ${_selectedRoomIds.length} Chats?',
+          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'This chat will be deleted from your side. The other user will still keep their copy.',
+          style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0xFF8B88A5))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteSelectedChats();
+            },
+            child: Text('Delete', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteSelectedChats() async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final roomId in _selectedRoomIds) {
+        final docRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
+        batch.update(docRef, {'deletedByMechanic': true});
+      }
+      await batch.commit();
+
+      if (mounted) {
+        setState(() {
+          _selectedRoomIds.clear();
+        });
+        _notifyParentSelection();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selected chat(s) deleted from your list.'),
+            backgroundColor: Color(0xFF161426),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete chats: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return '';
     final date = timestamp.toDate();
@@ -69,7 +173,11 @@ class _MechanicMessagesTabState extends State<MechanicMessagesTab> {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF00E676)));
         }
 
-        final docs = snapshot.data?.docs ?? [];
+        final allDocs = snapshot.data?.docs ?? [];
+        final docs = allDocs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['deletedByMechanic'] != true;
+        }).toList();
 
         if (docs.isEmpty) {
           return Center(
@@ -95,6 +203,7 @@ class _MechanicMessagesTabState extends State<MechanicMessagesTab> {
             final chatDoc = docs[index];
             final chat = chatDoc.data() as Map<String, dynamic>;
             final roomId = chatDoc.id;
+            final isSelected = _selectedRoomIds.contains(roomId);
 
             final name = chat['customerName'] as String? ?? 'Client';
             final lastMessage = chat['lastMessage'] as String? ?? 'No messages yet';
@@ -105,54 +214,83 @@ class _MechanicMessagesTabState extends State<MechanicMessagesTab> {
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF161426),
+                  color: isSelected ? const Color(0xFF2A2040) : const Color(0xFF161426),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: unread
-                        ? const Color(0xFF00E676).withOpacity(0.5)
-                        : const Color(0xFF302B53).withOpacity(0.6),
-                    width: unread ? 1.5 : 1.0,
+                    color: isSelected
+                        ? const Color(0xFF00E676)
+                        : unread
+                            ? const Color(0xFF00E676).withValues(alpha: 0.5)
+                            : const Color(0xFF302B53).withValues(alpha: 0.6),
+                    width: isSelected || unread ? 1.5 : 1.0,
                   ),
                 ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
+                    onLongPress: () => _toggleSelection(roomId),
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ChatDetailScreen(
-                            roomId: roomId,
-                            recipientId: chat['customerId'] ?? '',
-                            recipientName: name,
-                            recipientPhotoUrl: photoUrl ?? '',
-                            recipientRole: 'Client',
+                      if (_selectedRoomIds.isNotEmpty) {
+                        _toggleSelection(roomId);
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatDetailScreen(
+                              roomId: roomId,
+                              recipientId: chat['customerId'] ?? '',
+                              recipientName: name,
+                              recipientPhotoUrl: photoUrl ?? '',
+                              recipientRole: 'Client',
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      }
                     },
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 26,
-                            backgroundColor: const Color(0xFF0D0B18),
-                            backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                                ? NetworkImage(photoUrl)
-                                : null,
-                            child: photoUrl == null || photoUrl.isEmpty
-                                ? Text(
-                                    avatarLetter,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF00E676),
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor: const Color(0xFF0D0B18),
+                                backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                                    ? NetworkImage(photoUrl)
+                                    : null,
+                                child: photoUrl == null || photoUrl.isEmpty
+                                    ? Text(
+                                        avatarLetter,
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF00E676),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              if (isSelected)
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF00E676),
+                                      shape: BoxShape.circle,
                                     ),
-                                  )
-                                : null,
+                                    padding: const EdgeInsets.all(2),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(width: 16),
                           Expanded(
