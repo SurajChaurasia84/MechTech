@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,6 +10,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/service_model.dart';
 import '../utils/payment_config.dart';
+import 'image_compressor.dart';
 
 
 class AppState extends ChangeNotifier {
@@ -38,6 +40,72 @@ class AppState extends ChangeNotifier {
 
   int get sCoins => _sCoins;
   double get sCoinsRupeeValue => (_sCoins / 100.0) * 10.0;
+
+  // Cloudinary upload with app-side 50-100KB image compression and signed backend authentication
+  Future<String?> uploadToCloudinary(String filePath, {String preset = 'ml_default'}) async {
+    try {
+      // 1. App-side compression down to 50-100KB target
+      final originalFile = File(filePath);
+      final compressedFile = await ImageCompressorService.compressImage(originalFile);
+      final uploadPath = compressedFile.path;
+
+      final fileSizeBytes = await compressedFile.length();
+      debugPrint('Uploading compressed file to Cloudinary: $uploadPath (${(fileSizeBytes / 1024).toStringAsFixed(2)} KB)');
+
+      // 2. Fetch Cloudinary signature from Vercel backend gateway
+      final sigUrl = Uri.parse('${PaymentConfig.backendBaseUrl}/api/get-cloudinary-signature');
+      final sigRes = await http.get(sigUrl);
+
+      if (sigRes.statusCode == 200) {
+        final sigData = json.decode(sigRes.body);
+        if (sigData['success'] == true) {
+          final cloudName = sigData['cloudName']?.toString() ?? 'kqehljgs';
+          final apiKey = sigData['apiKey']?.toString() ?? '464179729545116';
+          final timestamp = sigData['timestamp'].toString();
+          final signature = sigData['signature'] as String;
+
+          final uploadUrl = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
+          final request = http.MultipartRequest('POST', uploadUrl)
+            ..fields['api_key'] = apiKey
+            ..fields['timestamp'] = timestamp
+            ..fields['signature'] = signature
+            ..files.add(await http.MultipartFile.fromPath('file', uploadPath));
+
+          final response = await request.send();
+          if (response.statusCode == 200) {
+            final responseData = await response.stream.bytesToString();
+            final decodedData = json.decode(responseData);
+            final imageUrl = decodedData['secure_url'] as String?;
+            debugPrint('Cloudinary signed upload success: $imageUrl');
+            return imageUrl;
+          } else {
+            final errorText = await response.stream.bytesToString();
+            debugPrint('Signed Cloudinary upload failed (${response.statusCode}): $errorText');
+          }
+        }
+      }
+
+      // 3. Fallback to upload_preset if backend signature is unavailable
+      final fallbackUrl = Uri.parse('https://api.cloudinary.com/v1_1/kqehljgs/image/upload');
+      final fallbackReq = http.MultipartRequest('POST', fallbackUrl)
+        ..fields['upload_preset'] = preset
+        ..files.add(await http.MultipartFile.fromPath('file', uploadPath));
+
+      final fallbackRes = await fallbackReq.send();
+      if (fallbackRes.statusCode == 200) {
+        final responseData = await fallbackRes.stream.bytesToString();
+        final decodedData = json.decode(responseData);
+        return decodedData['secure_url'] as String?;
+      } else {
+        final errorText = await fallbackRes.stream.bytesToString();
+        debugPrint('Fallback Cloudinary upload failed (${fallbackRes.statusCode}): $errorText');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Cloudinary: $e');
+      return null;
+    }
+  }
 
   // Constructor
   AppState() {
@@ -235,7 +303,7 @@ class AppState extends ChangeNotifier {
       final token = await _user?.getIdToken();
 
       // 3. Post to Vercel Gateway
-      final url = Uri.parse('https://vercel-ten-gray-35.vercel.app/api/send-notification');
+      final url = Uri.parse('${PaymentConfig.backendBaseUrl}/api/send-notification');
       final response = await http.post(
         url,
         headers: {
