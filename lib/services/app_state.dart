@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -143,6 +145,14 @@ class AppState extends ChangeNotifier {
             _userRole = data?['role'] as String?;
             _sCoins = (data?['sCoins'] as num?)?.toInt() ?? 0;
 
+            // Auto-ensure referralCode field exists in user doc
+            final userRefCode = data?['referralCode'] as String? ?? 'MT-${user.uid.substring(0, user.uid.length >= 6 ? 6 : user.uid.length).toUpperCase()}';
+            if (data?['referralCode'] == null) {
+              await _firestore.collection('users').doc(user.uid).set({
+                'referralCode': userRefCode,
+              }, SetOptions(merge: true));
+            }
+
             final vTypeStr = data?['selectedVehicleType'] as String?;
             if (vTypeStr != null) {
               if (vTypeStr == 'car') _selectedVehicleType = VehicleType.car;
@@ -258,17 +268,38 @@ class AppState extends ChangeNotifier {
     final notification = message.notification;
     if (notification == null) return;
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+    final data = message.data;
+    // ONLY ring alarm when receiving a new service booking request sent to mechanic
+    final isBookingAlert = data['type'] == 'booking';
+
+    final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'mechtech_booking_channel',
-      'Booking Notifications',
-      channelDescription: 'Notifications related to booking requests and updates.',
+      isBookingAlert
+          ? 'mechtech_booking_alarm_channel_v3'
+          : 'mechtech_general_channel',
+      isBookingAlert ? 'Booking Notifications' : 'General Notifications',
+      channelDescription: isBookingAlert
+          ? 'Notifications related to booking requests and updates.'
+          : 'Notifications related to chats and app updates.',
       importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'ticker',
+      priority: Priority.max,
+      audioAttributesUsage: isBookingAlert
+          ? AudioAttributesUsage.alarm
+          : AudioAttributesUsage.notification,
+      sound: isBookingAlert
+          ? const UriAndroidNotificationSound('content://settings/system/alarm_alert')
+          : null,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: isBookingAlert
+          ? Int64List.fromList([0, 1000, 500, 1000, 500, 1000])
+          : null,
+      fullScreenIntent: isBookingAlert,
+      ticker: isBookingAlert ? 'Booking Request' : 'Notification',
       icon: '@mipmap/launcher_icon',
     );
-    const NotificationDetails platformChannelSpecifics =
+
+    final NotificationDetails platformChannelSpecifics =
         NotificationDetails(android: androidPlatformChannelSpecifics);
 
     await _localNotificationsPlugin.show(
@@ -284,6 +315,7 @@ class AppState extends ChangeNotifier {
     required String recipientUid,
     required String title,
     required String body,
+    String type = 'general',
   }) async {
     try {
       // 1. Fetch recipient's token from firestore
@@ -314,6 +346,7 @@ class AppState extends ChangeNotifier {
           'token': fcmToken,
           'title': title,
           'body': body,
+          'type': type,
         }),
       );
 
@@ -1046,16 +1079,17 @@ class AppState extends ChangeNotifier {
       final customerId = data['customerId'] as String?;
       final vehicleModel = data['vehicleModel'] as String? ?? 'Vehicle';
       final mechanicName = data['mechanicName'] as String? ?? 'Mechanic';
+      final rawVehicleType = (data['vehicleType'] as String? ?? '').toLowerCase();
 
       final updateData = {
         'status': 'Completed',
       };
 
-      // Update global document
+      // 1. Update global document
       await _firestore.collection('bookings').doc(bookingId).update(updateData);
 
-      // Update customer document
-      if (customerId != null) {
+      // 2. Update customer document
+      if (customerId != null && customerId.isNotEmpty) {
         await _firestore
             .collection('users')
             .doc(customerId)
@@ -1064,16 +1098,120 @@ class AppState extends ChangeNotifier {
             .update(updateData);
       }
 
-      // Reload jobs
-      await _loadMechanicJobsFromFirestore();
+      // 3. Calculate & Award Random S-Coins in Range to CUSTOMER Wallet
+      if (customerId != null && customerId.isNotEmpty) {
+        final rnd = Random();
+        int rewardCoins = 300 + rnd.nextInt(201); // Car: 300 - 500 S-Coins
+        String serviceTitle = 'Car Service Completed';
 
-      if (customerId != null) {
+        if (rawVehicleType.contains('bike')) {
+          rewardCoins = 50 + rnd.nextInt(51); // Bike: 50 - 100 S-Coins
+          serviceTitle = 'Bike Service Completed';
+        } else if (rawVehicleType.contains('ev')) {
+          rewardCoins = 200 + rnd.nextInt(201); // EV: 200 - 400 S-Coins
+          serviceTitle = 'EV Service Completed';
+        }
+
+        // Credit customer's sCoins in Firestore
+        await _firestore.collection('users').doc(customerId).set({
+          'sCoins': FieldValue.increment(rewardCoins),
+        }, SetOptions(merge: true));
+
+        // Record transaction in customer's wallet_transactions
+        await _firestore
+            .collection('users')
+            .doc(customerId)
+            .collection('wallet_transactions')
+            .add({
+          'title': serviceTitle,
+          'subtitle': 'Reward for service completion ($vehicleModel)',
+          'amount': rewardCoins,
+          'type': 'credit',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // Update local app state sCoins if logged in user is this customer
+        if (_user?.uid == customerId) {
+          _sCoins += rewardCoins;
+          notifyListeners();
+        }
+
         sendNotification(
           recipientUid: customerId,
-          title: 'Service Completed!',
-          body: '$mechanicName has completed the service on your $vehicleModel.',
+          title: 'Service Completed! 🎁',
+          body: '$mechanicName has completed the service on your $vehicleModel. You earned $rewardCoins S-Coins!',
         );
+
+        // Check Referral Reward for customer's referrer on 1st completed booking (COD & Online)
+        try {
+          final custDoc = await _firestore.collection('users').doc(customerId).get();
+          final referredBy = (custDoc.data()?['referralCodeUsed'] as String? ?? custDoc.data()?['referredBy'] as String?)?.trim().toUpperCase();
+          final isFirstBooking = custDoc.data()?['referralRewarded'] as bool? ?? false;
+
+          if (referredBy != null && referredBy.isNotEmpty && !isFirstBooking) {
+            // Mark referral as rewarded for this customer
+            await _firestore.collection('users').doc(customerId).set({
+              'referralRewarded': true,
+            }, SetOptions(merge: true));
+
+            String? referrerId;
+
+            // 1. Query by referralCode field
+            final referrerQuery = await _firestore
+                .collection('users')
+                .where('referralCode', isEqualTo: referredBy)
+                .limit(1)
+                .get();
+
+            if (referrerQuery.docs.isNotEmpty) {
+              referrerId = referrerQuery.docs.first.id;
+            } else if (referredBy.startsWith('MT-')) {
+              // 2. Fallback search by uid prefix and self-heal
+              final codePrefix = referredBy.substring(3).toLowerCase();
+              final allUsers = await _firestore.collection('users').get();
+              for (final uDoc in allUsers.docs) {
+                if (uDoc.id.toLowerCase().startsWith(codePrefix)) {
+                  referrerId = uDoc.id;
+                  await _firestore.collection('users').doc(referrerId).set({
+                    'referralCode': referredBy,
+                  }, SetOptions(merge: true));
+                  break;
+                }
+              }
+            }
+
+            if (referrerId != null && referrerId.isNotEmpty) {
+              // Award 600 S-Coins (₹60) to referrer
+              await _firestore.collection('users').doc(referrerId).set({
+                'sCoins': FieldValue.increment(600),
+              }, SetOptions(merge: true));
+
+              await _firestore
+                  .collection('users')
+                  .doc(referrerId)
+                  .collection('wallet_transactions')
+                  .add({
+                'title': 'Referral Reward (₹60 Credit)',
+                'subtitle': 'Friend completed 1st service booking!',
+                'amount': 600,
+                'type': 'credit',
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+
+              sendNotification(
+                recipientUid: referrerId,
+                title: 'Referral Bonus Credited! 🎉',
+                body: 'You earned 600 S-Coins (₹60) because your friend completed their first service!',
+              );
+            }
+          }
+        } catch (refErr) {
+          debugPrint("Error processing referral reward: $refErr");
+        }
       }
+
+      // Reload jobs
+      await _loadMechanicJobsFromFirestore();
     } catch (e) {
       debugPrint("Error completing job: $e");
     }
@@ -1245,8 +1383,9 @@ class AppState extends ChangeNotifier {
         if (mechanicId != null) {
           sendNotification(
             recipientUid: mechanicId,
-            title: 'New Paid Booking!',
-            body: '$name has paid and requested a service for ${newBooking.vehicleModel}.',
+            title: 'New Booking Request',
+            body: '$name has requested a service for ${newBooking.vehicleModel}.',
+            type: 'booking',
           );
         }
 
@@ -1359,10 +1498,14 @@ class AppState extends ChangeNotifier {
 
       final customerId = booking.customerId;
       if (customerId != null) {
-        // Calculate S-Coins reward based on vehicle category
-        int rewardCoins = 400; // Car default
-        if (booking.vehicleType == VehicleType.bike) rewardCoins = 75;
-        if (booking.vehicleType == VehicleType.ev) rewardCoins = 300;
+        // Calculate Random S-Coins reward based on vehicle category range
+        final rnd = Random();
+        int rewardCoins = 300 + rnd.nextInt(201); // Car default (300 - 500)
+        if (booking.vehicleType == VehicleType.bike) {
+          rewardCoins = 50 + rnd.nextInt(51); // Bike (50 - 100)
+        } else if (booking.vehicleType == VehicleType.ev) {
+          rewardCoins = 200 + rnd.nextInt(201); // EV (200 - 400)
+        }
 
         // Credit customer wallet
         await _firestore.collection('users').doc(customerId).set({
@@ -1381,56 +1524,74 @@ class AppState extends ChangeNotifier {
           'timestamp': FieldValue.serverTimestamp(),
         });
 
-        // Check referral reward for referrer
-        final custDoc = await _firestore.collection('users').doc(customerId).get();
-        final referredBy = custDoc.data()?['referralCodeUsed'] as String? ?? custDoc.data()?['referredBy'] as String?;
-        final isFirstBooking = custDoc.data()?['referralRewarded'] as bool? ?? false;
+        // Check referral reward for referrer (COD & Online)
+        try {
+          final custDoc = await _firestore.collection('users').doc(customerId).get();
+          final referredBy = (custDoc.data()?['referralCodeUsed'] as String? ?? custDoc.data()?['referredBy'] as String?)?.trim().toUpperCase();
+          final isFirstBooking = custDoc.data()?['referralRewarded'] as bool? ?? false;
 
-        if (referredBy != null && referredBy.isNotEmpty && !isFirstBooking) {
-          // Mark referral rewarded
-          await _firestore.collection('users').doc(customerId).set({
-            'referralRewarded': true,
-          }, SetOptions(merge: true));
-
-          // Find referrer user by referralCode
-          final referrerQuery = await _firestore
-              .collection('users')
-              .where('referralCode', isEqualTo: referredBy)
-              .limit(1)
-              .get();
-
-          if (referrerQuery.docs.isNotEmpty) {
-            final referrerId = referrerQuery.docs.first.id;
-            // Award 600 S-Coins (₹60) to referrer
-            await _firestore.collection('users').doc(referrerId).set({
-              'sCoins': FieldValue.increment(600),
+          if (referredBy != null && referredBy.isNotEmpty && !isFirstBooking) {
+            await _firestore.collection('users').doc(customerId).set({
+              'referralRewarded': true,
             }, SetOptions(merge: true));
 
-            await _firestore
-                .collection('users')
-                .doc(referrerId)
-                .collection('wallet_transactions')
-                .add({
-              'title': 'Referral Reward (₹60 Credit)',
-              'subtitle': 'Friend completed 1st service booking!',
-              'amount': 600,
-              'type': 'credit',
-              'timestamp': FieldValue.serverTimestamp(),
-            });
+            String? referrerId;
 
-            sendNotification(
-              recipientUid: referrerId,
-              title: 'Referral Bonus Credited! 🎉',
-              body: 'You earned 600 S-Coins (₹60) because your friend completed their first service!',
-            );
+            final referrerQuery = await _firestore
+                .collection('users')
+                .where('referralCode', isEqualTo: referredBy)
+                .limit(1)
+                .get();
+
+            if (referrerQuery.docs.isNotEmpty) {
+              referrerId = referrerQuery.docs.first.id;
+            } else if (referredBy.startsWith('MT-')) {
+              final codePrefix = referredBy.substring(3).toLowerCase();
+              final allUsers = await _firestore.collection('users').get();
+              for (final uDoc in allUsers.docs) {
+                if (uDoc.id.toLowerCase().startsWith(codePrefix)) {
+                  referrerId = uDoc.id;
+                  await _firestore.collection('users').doc(referrerId).set({
+                    'referralCode': referredBy,
+                  }, SetOptions(merge: true));
+                  break;
+                }
+              }
+            }
+
+            if (referrerId != null && referrerId.isNotEmpty) {
+              await _firestore.collection('users').doc(referrerId).set({
+                'sCoins': FieldValue.increment(600),
+              }, SetOptions(merge: true));
+
+              await _firestore
+                  .collection('users')
+                  .doc(referrerId)
+                  .collection('wallet_transactions')
+                  .add({
+                'title': 'Referral Reward (₹60 Credit)',
+                'subtitle': 'Friend completed 1st service booking!',
+                'amount': 600,
+                'type': 'credit',
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+
+              sendNotification(
+                recipientUid: referrerId,
+                title: 'Referral Bonus Credited! 🎉',
+                body: 'You earned 600 S-Coins (₹60) because your friend completed their first service!',
+              );
+            }
           }
+        } catch (e) {
+          debugPrint("Error processing referral reward: $e");
         }
 
         // Notify customer of coins earned
         sendNotification(
           recipientUid: customerId,
-          title: 'S-Coins Credited! 🪙',
-          body: 'You earned $rewardCoins S-Coins for completing your service!',
+          title: 'Service Completed! 🎁',
+          body: 'Your service on ${booking.vehicleModel} is completed! You earned $rewardCoins S-Coins.',
         );
       }
 
