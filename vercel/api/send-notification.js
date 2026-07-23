@@ -51,10 +51,13 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized: Invalid token', details: err.message });
   }
 
-  const { token, title, body } = req.body;
+  const { token, title, body, type } = req.body;
   if (!token || !title || !body) {
     return res.status(400).json({ error: 'Missing token, title, or body parameters in request body' });
   }
+
+  // ONLY ring alarm when type is strictly 'booking' (new incoming booking request)
+  const isBooking = type === 'booking';
 
   // Ensure environment variables are set
   if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
@@ -100,6 +103,19 @@ module.exports = async (req, res) => {
           notification: {
             title: title,
             body: body,
+          },
+          data: {
+            type: isBooking ? 'booking' : 'general',
+          },
+          android: {
+            priority: 'HIGH',
+            notification: {
+              channel_id: isBooking ? 'mechtech_booking_alarm_channel_v3' : 'mechtech_general_channel',
+              sound: isBooking ? 'alarm' : 'default',
+              default_sound: !isBooking,
+              notification_priority: 'PRIORITY_MAX',
+              visibility: 'PUBLIC',
+            },
           },
         },
       }),
