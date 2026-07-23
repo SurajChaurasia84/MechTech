@@ -85,10 +85,28 @@ class _MessagesTabState extends State<MessagesTab> {
 
   Future<void> _deleteSelectedChats() async {
     try {
+      final appState = Provider.of<AppState>(context, listen: false);
+      final currentUserId = appState.user?.uid;
+      if (currentUserId == null) return;
+
       final batch = FirebaseFirestore.instance.batch();
       for (final roomId in _selectedRoomIds) {
         final docRef = FirebaseFirestore.instance.collection('chats').doc(roomId);
-        batch.update(docRef, {'deletedByCustomer': true});
+        final docSnap = await docRef.get();
+        if (docSnap.exists) {
+          final data = docSnap.data()!;
+          final updates = <String, dynamic>{
+            'deletedBy_$currentUserId': true,
+            'deletedBy': FieldValue.arrayUnion([currentUserId]),
+          };
+          if (data['customerId'] == currentUserId) {
+            updates['deletedByCustomer'] = true;
+          }
+          if (data['mechanicId'] == currentUserId) {
+            updates['deletedByMechanic'] = true;
+          }
+          batch.update(docRef, updates);
+        }
       }
       await batch.commit();
 
@@ -156,8 +174,11 @@ class _MessagesTabState extends State<MessagesTab> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('chats')
-          .where('customerId', isEqualTo: currentUserId)
-          .orderBy('timestamp', descending: true)
+          .where(Filter.or(
+            Filter('customerId', isEqualTo: currentUserId),
+            Filter('mechanicId', isEqualTo: currentUserId),
+            Filter('participants', arrayContains: currentUserId),
+          ))
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -176,8 +197,29 @@ class _MessagesTabState extends State<MessagesTab> {
         final allDocs = snapshot.data?.docs ?? [];
         final docs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return data['deletedByCustomer'] != true;
+          final isCustomer = data['customerId'] == currentUserId;
+          final isMechanic = data['mechanicId'] == currentUserId;
+          final isParticipant = (data['participants'] as List?)?.contains(currentUserId) == true;
+
+          if (!isCustomer && !isMechanic && !isParticipant) return false;
+
+          // Check deletion status for current user
+          if (data['deletedBy_$currentUserId'] == true) return false;
+          if ((data['deletedBy'] as List?)?.contains(currentUserId) == true) return false;
+          if (isCustomer && data['deletedByCustomer'] == true) return false;
+          if (isMechanic && data['deletedByMechanic'] == true) return false;
+
+          return true;
         }).toList();
+
+        // Sort docs descending by timestamp
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = (aData['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bTime = (bData['timestamp'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bTime.compareTo(aTime);
+        });
 
         if (docs.isEmpty) {
           return Center(
@@ -187,7 +229,7 @@ class _MessagesTabState extends State<MessagesTab> {
                 const Icon(Icons.forum_outlined, color: Color(0xFF302B53), size: 48),
                 const SizedBox(height: 12),
                 Text(
-                  'Your inbox is empty.\nBook a mechanic to start chatting.',
+                  'Your inbox is empty.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(color: const Color(0xFF8B88A5), fontSize: 13),
                 ),
@@ -205,12 +247,29 @@ class _MessagesTabState extends State<MessagesTab> {
             final roomId = chatDoc.id;
             final isSelected = _selectedRoomIds.contains(roomId);
 
-            final name = chat['mechanicName'] as String? ?? 'Mechanic';
+            final isCustomerRole = chat['customerId'] == currentUserId;
+
+            final recipientId = isCustomerRole
+                ? (chat['mechanicId'] as String? ?? '')
+                : (chat['customerId'] as String? ?? '');
+
+            final name = isCustomerRole
+                ? (chat['mechanicName'] as String? ?? 'Mechanic')
+                : (chat['customerName'] as String? ?? 'Customer');
+
+            final photoUrl = isCustomerRole
+                ? (chat['mechanicPhotoUrl'] as String?)
+                : (chat['customerPhotoUrl'] as String?);
+
+            final roleStr = isCustomerRole ? 'Mechanic Specialist' : 'Customer';
+
+            final unread = isCustomerRole
+                ? (chat['unreadByCustomer'] == true)
+                : (chat['unreadByMechanic'] == true);
+
             final lastMessage = chat['lastMessage'] as String? ?? 'No messages yet';
-            final unread = chat['unreadByCustomer'] == true;
-            final photoUrl = chat['mechanicPhotoUrl'] as String?;
             final timeStr = _formatTimestamp(chat['timestamp'] as Timestamp?);
-            final avatarLetter = name.isNotEmpty ? name[0].toUpperCase() : 'M';
+            final avatarLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
@@ -241,10 +300,10 @@ class _MessagesTabState extends State<MessagesTab> {
                           MaterialPageRoute(
                             builder: (_) => ChatDetailScreen(
                               roomId: roomId,
-                              recipientId: chat['mechanicId'] ?? '',
+                              recipientId: recipientId,
                               recipientName: name,
                               recipientPhotoUrl: photoUrl ?? '',
-                              recipientRole: 'Mechanic Specialist',
+                              recipientRole: roleStr,
                             ),
                           ),
                         );
@@ -319,7 +378,7 @@ class _MessagesTabState extends State<MessagesTab> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Mechanic Specialist',
+                                  roleStr,
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: const Color(0xFF00B0FF),
