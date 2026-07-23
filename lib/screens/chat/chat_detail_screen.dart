@@ -140,6 +140,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           'timestamp': FieldValue.serverTimestamp(),
           'unreadByCustomer': role == 'mechanic',
           'unreadByMechanic': role == 'customer',
+          'deletedByCustomer': false,
+          'deletedByMechanic': false,
         });
 
         await batch.commit();
@@ -273,6 +275,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         'timestamp': FieldValue.serverTimestamp(),
         'unreadByCustomer': role == 'mechanic',
         'unreadByMechanic': role == 'customer',
+        'deletedByCustomer': false,
+        'deletedByMechanic': false,
       });
 
       await batch.commit();
@@ -322,6 +326,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'timestamp': FieldValue.serverTimestamp(),
       'unreadByCustomer': role == 'mechanic',
       'unreadByMechanic': role == 'customer',
+      'deletedByCustomer': false,
+      'deletedByMechanic': false,
     });
 
     try {
