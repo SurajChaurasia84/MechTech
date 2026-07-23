@@ -852,7 +852,7 @@ class _MechanicReviewsScreenState extends State<MechanicReviewsScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: filteredReviews.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final rev = filteredReviews[index];
                       final ratingVal = (rev['rating'] as num?)?.toInt() ?? 5;
