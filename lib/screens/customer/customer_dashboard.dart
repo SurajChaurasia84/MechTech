@@ -25,6 +25,11 @@ class _CustomerDashboardState extends State<CustomerDashboard>
     with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
 
+  // Chat selection state
+  Set<String> _selectedChatRoomIds = {};
+  VoidCallback? _clearChatSelection;
+  Function(BuildContext)? _confirmChatDelete;
+
   // Vehicle type tabs
   late TabController _vehicleTabController;
 
@@ -118,52 +123,75 @@ class _CustomerDashboardState extends State<CustomerDashboard>
           backgroundColor: const Color(0xFF161426),
           elevation: 0,
           automaticallyImplyLeading: false,
-          title: Row(
-            children: [
-              if (_currentIndex == 0) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.asset('assets/icon.png', height: 28, width: 28),
-                ),
-                const SizedBox(width: 10),
-              ],
-              if (_currentIndex == 0)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+          title: (_currentIndex == 2 && _selectedChatRoomIds.isNotEmpty)
+              ? Row(
                   children: [
-                    Text(
-                      _getAppBarTitle(),
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                      onPressed: () {
+                        _clearChatSelection?.call();
+                        setState(() => _selectedChatRoomIds.clear());
+                      },
                     ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_locationFetching)
-                          const SizedBox(
-                            width: 9, height: 9,
-                            child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF00E676)),
-                          )
-                        else
-                          const Icon(Icons.location_on_rounded, size: 11, color: Color(0xFF00E676)),
-                        const SizedBox(width: 3),
-                        Text(
-                          _locationLabel,
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF8B88A5), fontWeight: FontWeight.w500),
-                        ),
-                      ],
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${_selectedChatRoomIds.length} selected)',
+                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
                     ),
                   ],
                 )
-              else
-                Text(
-                  _getAppBarTitle(),
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
+              : Row(
+                  children: [
+                    if (_currentIndex == 0) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset('assets/icon.png', height: 28, width: 28),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    if (_currentIndex == 0)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _getAppBarTitle(),
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_locationFetching)
+                                const SizedBox(
+                                  width: 9, height: 9,
+                                  child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF00E676)),
+                                )
+                              else
+                                const Icon(Icons.location_on_rounded, size: 11, color: Color(0xFF00E676)),
+                              const SizedBox(width: 3),
+                              Text(
+                                _locationLabel,
+                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF8B88A5), fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    else
+                      Text(
+                        _getAppBarTitle(),
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
+                      ),
+                  ],
                 ),
-            ],
-          ),
           actions: [
-            if (_currentIndex == 0)
+            if (_currentIndex == 2 && _selectedChatRoomIds.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 24),
+                tooltip: 'Delete Selected Chats',
+                onPressed: () => _confirmChatDelete?.call(context),
+              )
+            else if (_currentIndex == 0)
               Consumer<AppState>(
                 builder: (context, appState, _) {
                   final hasVehicle = appState.selectedVehicleModel != null;
@@ -327,7 +355,13 @@ class _CustomerDashboardState extends State<CustomerDashboard>
             selectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
             unselectedLabelStyle: GoogleFonts.inter(fontSize: 12),
             type: BottomNavigationBarType.fixed,
-            onTap: (index) => setState(() => _currentIndex = index),
+            onTap: (index) {
+              if (index != 2 && _selectedChatRoomIds.isNotEmpty) {
+                _clearChatSelection?.call();
+                _selectedChatRoomIds.clear();
+              }
+              setState(() => _currentIndex = index);
+            },
             items: [
               const BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
@@ -405,7 +439,18 @@ class _CustomerDashboardState extends State<CustomerDashboard>
   Widget _buildBody() {
     switch (_currentIndex) {
       case 1: return const HistoryTab();
-      case 2: return const MessagesTab();
+      case 2:
+        return MessagesTab(
+          onSelectionChanged: (selectedIds, clearFn, deleteFn) {
+            if (mounted) {
+              setState(() {
+                _selectedChatRoomIds = Set.from(selectedIds);
+                _clearChatSelection = clearFn;
+                _confirmChatDelete = deleteFn;
+              });
+            }
+          },
+        );
       case 3: return const ProfileTab();
       default: return const SizedBox.shrink();
     }
