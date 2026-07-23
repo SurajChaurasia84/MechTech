@@ -303,59 +303,6 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
     );
 
     try {
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('bookings')
-          .where('customerId', isEqualTo: currentUserId)
-          .where('mechanicId', isEqualTo: mechanicId)
-          .limit(1)
-          .get();
-
-      if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
-
-      if (querySnapshot.docs.isEmpty) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                backgroundColor: const Color(0xFF161426),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFF302B53), width: 1.5),
-                ),
-                title: Text(
-                  'Messaging Blocked',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                content: Text(
-                  'To prevent spam and misuse, you can only message a mechanic once you have requested a service booking with them.',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF8B88A5),
-                    height: 1.4,
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      'Got it',
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF00E676),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-        return;
-      }
-
       final roomId = currentUserId.compareTo(mechanicId) < 0
           ? '${currentUserId}_$mechanicId'
           : '${mechanicId}_$currentUserId';
@@ -365,6 +312,7 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
       if (!chatDoc.exists) {
         await chatDocRef.set({
           'id': roomId,
+          'participants': [currentUserId, mechanicId],
           'customerId': currentUserId,
           'customerName': appState.currentCustomerName ?? 'Customer',
           'customerPhotoUrl': appState.currentCustomerPhotoUrl ?? '',
@@ -377,6 +325,10 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
           'unreadByCustomer': false,
           'unreadByMechanic': false,
         });
+      }
+
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
       }
 
       if (mounted) {
@@ -393,8 +345,17 @@ class _MechanicProfileDetailsScreenState extends State<MechanicProfileDetailsScr
         );
       }
     } catch (e) {
-      if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
-      debugPrint("Error creating chat: $e");
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error opening chat: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
