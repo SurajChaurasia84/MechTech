@@ -68,7 +68,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
           _redeemedCode = redeemed;
           _referralStream = FirebaseFirestore.instance
               .collection('users')
-              .where('referredBy', isEqualTo: code)
+              .where(Filter.or(
+                Filter('referredBy', isEqualTo: code),
+                Filter('referralCodeUsed', isEqualTo: code),
+              ))
               .snapshots();
           _isLoadingCode = false;
         });
@@ -397,14 +400,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 12),
-            if (_referralStream != null)
+               if (_referralStream != null)
               StreamBuilder<QuerySnapshot>(
                 stream: _referralStream,
                 builder: (context, snapshot) {
                   final docs = snapshot.data?.docs ?? [];
                   final totalReferred = docs.length;
-                  final totalEarned = totalReferred * 60;
+                  final rewardedDocs = docs.where((d) => (d.data() as Map<String, dynamic>)['referralRewarded'] == true).toList();
+                  final totalEarned = rewardedDocs.length * 60;
 
                   return Column(
                     children: [
@@ -439,19 +442,27 @@ class _ReferralScreenState extends State<ReferralScreen> {
                           itemBuilder: (context, index) {
                             final data = docs[index].data() as Map<String, dynamic>;
                             final name = data['name'] as String? ?? 'Friend';
+                            final isRewarded = data['referralRewarded'] == true;
+
                             return Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF161426),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFF302B53)),
+                                border: Border.all(
+                                  color: isRewarded ? const Color(0xFF00E676).withValues(alpha: 0.4) : const Color(0xFF302B53),
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  const CircleAvatar(
+                                  CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: Color(0xFF302B53),
-                                    child: Icon(Icons.person, color: Color(0xFF00E676), size: 18),
+                                    backgroundColor: isRewarded ? const Color(0xFF00E676).withValues(alpha: 0.15) : const Color(0xFF302B53),
+                                    child: Icon(
+                                      isRewarded ? Icons.check_circle_rounded : Icons.person,
+                                      color: const Color(0xFF00E676),
+                                      size: 18,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -467,19 +478,20 @@ class _ReferralScreenState extends State<ReferralScreen> {
                                           ),
                                         ),
                                         Text(
-                                          'Signed up with your code',
+                                          isRewarded ? '1st service completed 🎉' : 'Signed up with your code',
                                           style: GoogleFonts.inter(
-                                            color: const Color(0xFF8B88A5),
+                                            color: isRewarded ? const Color(0xFF00E676) : const Color(0xFF8B88A5),
                                             fontSize: 12,
+                                            fontWeight: isRewarded ? FontWeight.w500 : FontWeight.normal,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
                                   Text(
-                                    '+₹60 Pending',
+                                    isRewarded ? '+₹60 Credited' : '+₹60 Pending',
                                     style: GoogleFonts.outfit(
-                                      color: const Color(0xFFFFD700),
+                                      color: isRewarded ? const Color(0xFF00E676) : const Color(0xFFFFD700),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
