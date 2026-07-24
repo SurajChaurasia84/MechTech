@@ -26,12 +26,14 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Helper to send push notifications via FCM Admin SDK
-async function sendPushNotification(recipientUid, title, body) {
+async function sendPushNotification(recipientUid, title, body, type = 'general') {
   try {
     const userDoc = await db.collection('users').doc(recipientUid).get();
     if (!userDoc.exists) return;
     const token = userDoc.data().fcmToken;
     if (!token) return;
+
+    const isBooking = type === 'booking';
 
     await admin.messaging().send({
       token: token,
@@ -40,10 +42,20 @@ async function sendPushNotification(recipientUid, title, body) {
         body: body,
       },
       data: {
+        type: isBooking ? 'booking' : 'general',
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
-      }
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: isBooking ? 'mechtech_booking_alarm_v6' : 'mechtech_general_channel_v4',
+          sound: isBooking ? 'content://settings/system/alarm_alert' : 'default',
+          priority: 'max',
+          visibility: 'public',
+        },
+      },
     });
-    console.log(`Notification sent to ${recipientUid}`);
+    console.log(`Notification (${type}) sent to ${recipientUid}`);
   } catch (err) {
     console.error(`Error sending notification to ${recipientUid}:`, err);
   }
@@ -198,7 +210,8 @@ module.exports = async (req, res) => {
     await sendPushNotification(
       mechanicId,
       'New COD Booking Request!',
-      `${customerName} has requested a Cash-on-Delivery service for ${vehicleModel}.`
+      `${customerName} has requested a Cash-on-Delivery service for ${vehicleModel}.`,
+      'booking'
     );
 
     await sendPushNotification(
