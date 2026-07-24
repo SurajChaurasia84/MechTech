@@ -199,6 +199,41 @@ class AppState extends ChangeNotifier {
         debugPrint("Notification clicked: ${details.payload}");
       },
     );
+
+    // Explicitly create Notification Channels on Android OS startup
+    final androidPlugin = _localNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      // 1. High-Priority Alarm Notification Channel for Booking Requests
+      final AndroidNotificationChannel bookingAlarmChannel = AndroidNotificationChannel(
+        'mechtech_booking_alarm_v6',
+        'Booking Notifications',
+        description: 'Notifications related to booking requests and updates.',
+        importance: Importance.max,
+        playSound: true,
+        sound: const UriAndroidNotificationSound('content://settings/system/alarm_alert'),
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+      );
+
+      // 2. Normal Notification Channel for General Messages & Updates
+      const AndroidNotificationChannel generalChannel = AndroidNotificationChannel(
+        'mechtech_general_channel_v4',
+        'General Notifications',
+        description: 'Notifications related to chats and app updates.',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      await androidPlugin.createNotificationChannel(bookingAlarmChannel);
+      await androidPlugin.createNotificationChannel(generalChannel);
+
+      // Request runtime notification & alarm permissions immediately on App Open
+      await androidPlugin.requestNotificationsPermission();
+      await androidPlugin.requestExactAlarmsPermission();
+    }
   }
 
   Future<void> initPushNotifications() async {
@@ -212,17 +247,18 @@ class AppState extends ChangeNotifier {
         announcement: false,
         badge: true,
         carPlay: false,
-        criticalAlert: false,
+        criticalAlert: true,
         provisional: false,
         sound: true,
       );
       debugPrint('User granted permission: ${settings.authorizationStatus}');
 
-      // Request runtime notification permission for Android 13+
+      // Request runtime notification & exact alarm permissions for Android
       final androidPlugin = _localNotificationsPlugin
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.requestNotificationsPermission();
+        await androidPlugin.requestExactAlarmsPermission();
       }
 
       // 2. Fetch token
@@ -275,8 +311,8 @@ class AppState extends ChangeNotifier {
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       isBookingAlert
-          ? 'mechtech_booking_alarm_channel_v3'
-          : 'mechtech_general_channel',
+          ? 'mechtech_booking_alarm_v6'
+          : 'mechtech_general_channel_v4',
       isBookingAlert ? 'Booking Notifications' : 'General Notifications',
       channelDescription: isBookingAlert
           ? 'Notifications related to booking requests and updates.'
