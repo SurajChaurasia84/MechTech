@@ -110,8 +110,8 @@ module.exports = async (req, res) => {
           android: {
             priority: 'HIGH',
             notification: {
-              channel_id: isBooking ? 'mechtech_booking_alarm_channel_v3' : 'mechtech_general_channel',
-              sound: isBooking ? 'alarm' : 'default',
+              channel_id: isBooking ? 'mechtech_booking_alarm_v6' : 'mechtech_general_channel_v4',
+              sound: isBooking ? 'content://settings/system/alarm_alert' : 'default',
               default_sound: !isBooking,
               notification_priority: 'PRIORITY_MAX',
               visibility: 'PUBLIC',
