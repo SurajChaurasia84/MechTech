@@ -778,7 +778,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                 ),
                                 Switch(
                                   value: _useSCoins,
-                                  activeColor: const Color(0xFFFFD700),
+                                  activeThumbColor: const Color(0xFFFFD700),
                                   onChanged: (val) => setState(() => _useSCoins = val),
                                 ),
                               ],
