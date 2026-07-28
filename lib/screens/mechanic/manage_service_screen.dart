@@ -10,6 +10,7 @@ import 'dart:io';
 import 'dart:convert';
 import '../../models/service_model.dart';
 import '../../utils/location_helper.dart';
+import '../../services/admin_service_catalog_service.dart';
 
 class SubCategoryItem {
   final TextEditingController nameController;
@@ -692,11 +693,30 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
     }
   }
 
+  List<String> get _effectiveSpecializations {
+    final defaultList = _categorySpecializations[_selectedCategory] ?? [];
+    final cachedAdmin = AdminServiceCatalogService.cachedCatalog[_selectedCategory] ?? {};
+    final Set<String> combined = {...defaultList, ...cachedAdmin.keys};
+    return combined.toList();
+  }
+
   List<SubCategoryItem> _initializeSubCategoriesForCategory(String cat) {
     final vehicleMap = _vehiclePresetSubCategories[_selectedCategory] ?? _vehiclePresetSubCategories['car']!;
-    final presets = vehicleMap[cat] ?? [];
-    if (presets.isNotEmpty) {
-      return presets
+    final defaultPresets = vehicleMap[cat] ?? [];
+
+    final cachedAdminMap = AdminServiceCatalogService.cachedCatalog[_selectedCategory] ?? {};
+    final adminPresets = cachedAdminMap[cat] ?? [];
+
+    final List<Map<String, String>> mergedPresets = List.from(defaultPresets);
+    for (final adminP in adminPresets) {
+      final name = adminP['name'] ?? '';
+      if (name.isNotEmpty && !mergedPresets.any((m) => m['name']?.toLowerCase() == name.toLowerCase())) {
+        mergedPresets.add(adminP);
+      }
+    }
+
+    if (mergedPresets.isNotEmpty) {
+      return mergedPresets
           .map((p) => SubCategoryItem(
                 name: p['name'] ?? '',
                 price: '',
@@ -1055,7 +1075,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                       child: DropdownButtonHideUnderline(
                         child: DropdownButtonFormField<String>(
                           dropdownColor: const Color(0xFF161426),
-                          value: _selectedModel,
+                          initialValue: _selectedModel,
                           style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
                           hint: Text(
                             'Select Vehicle Model',
@@ -1139,7 +1159,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                     ),
                     Column(
                       children: [
-                          ...(_categorySpecializations[_selectedCategory] ?? []).asMap().entries.map((entry) {
+                          ..._effectiveSpecializations.asMap().entries.map((entry) {
                             final index = entry.key;
                             final cat = entry.value;
                             final subItems = _subCategoriesMap[cat] ?? [];
@@ -1149,7 +1169,7 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                             }).length;
                             final isSelected = validSubItemsCount > 0;
                             final isExpanded = _expandedCategories.contains(cat);
-                            final specs = (_categorySpecializations[_selectedCategory] ?? []);
+                            final specs = _effectiveSpecializations;
                             final isLast = index == specs.length - 1 && _customCategorySections.isEmpty;
 
                             return Column(
@@ -1453,7 +1473,9 @@ class _ManageServiceScreenState extends State<ManageServiceScreen> {
                                               onTap: () {
                                                 setState(() {
                                                   catNameCtrl.dispose();
-                                                  for (final sub in subs) sub.dispose();
+                                                  for (final sub in subs) {
+                                                    sub.dispose();
+                                                  }
                                                   _customCategorySections.removeAt(cIdx);
                                                 });
                                               },
