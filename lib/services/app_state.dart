@@ -13,6 +13,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/service_model.dart';
 import '../utils/payment_config.dart';
 import 'image_compressor.dart';
+import 'admin_service_catalog_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class AppState extends ChangeNotifier {
@@ -112,6 +114,8 @@ class AppState extends ChangeNotifier {
   // Constructor
   AppState() {
     _initLocalNotifications();
+    _listenToVehicleCatalog();
+    AdminServiceCatalogService.init();
     _auth.authStateChanges().listen((User? user) async {
       _user = user;
       _userDocSubscription?.cancel();
@@ -824,6 +828,72 @@ class AppState extends ChangeNotifier {
     const VehicleModel(name: 'Revolt RV400', type: VehicleType.ev),
     const VehicleModel(name: 'Oben Rorr', type: VehicleType.ev),
   ];
+
+  Future<void> _listenToVehicleCatalog() async {
+    // 1. Load from SharedPreferences local cache first for instant startup
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString('cached_vehicle_catalog');
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List<dynamic> rawList = jsonDecode(jsonStr);
+        for (final item in rawList) {
+          if (item is Map) {
+            final name = item['name'] as String? ?? '';
+            final typeStr = item['type'] as String? ?? 'car';
+            VehicleType type = VehicleType.car;
+            if (typeStr == 'bike') type = VehicleType.bike;
+            if (typeStr == 'ev') type = VehicleType.ev;
+
+            if (name.isNotEmpty && !_allModels.any((m) => m.name.toLowerCase() == name.toLowerCase() && m.type == type)) {
+              _allModels.insert(0, VehicleModel(name: name, type: type));
+            }
+          }
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error loading cached vehicle catalog: $e");
+    }
+
+    // 2. Listen to Firestore in real-time and refresh local cache
+    _firestore.collection('vehicle_catalog').snapshots().listen((snapshot) async {
+      if (snapshot.docs.isNotEmpty) {
+        final List<VehicleModel> dynamicModels = [];
+        final List<Map<String, String>> cacheList = [];
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final brand = data['brand'] as String? ?? '';
+          final model = data['model'] as String? ?? '';
+          final catStr = (data['category'] as String? ?? 'car').toLowerCase();
+
+          VehicleType type = VehicleType.car;
+          if (catStr == 'bike') type = VehicleType.bike;
+          if (catStr == 'ev') type = VehicleType.ev;
+
+          final fullName = brand.isNotEmpty ? '$brand $model' : model;
+          if (fullName.isNotEmpty) {
+            dynamicModels.add(VehicleModel(name: fullName, type: type));
+            cacheList.add({'name': fullName, 'type': catStr});
+          }
+        }
+
+        for (final dyn in dynamicModels) {
+          if (!_allModels.any((m) => m.name.toLowerCase() == dyn.name.toLowerCase() && m.type == dyn.type)) {
+            _allModels.insert(0, dyn);
+          }
+        }
+
+        // Save to SharedPreferences
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cached_vehicle_catalog', jsonEncode(cacheList));
+        } catch (_) {}
+
+        notifyListeners();
+      }
+    });
+  }
 
   // Helper Methods
   List<VehicleModel> getModelsForType(VehicleType type) {
