@@ -234,9 +234,8 @@ class AppState extends ChangeNotifier {
       await androidPlugin.createNotificationChannel(bookingAlarmChannel);
       await androidPlugin.createNotificationChannel(generalChannel);
 
-      // Request runtime notification & alarm permissions immediately on App Open
+      // Request runtime notification permission immediately on App Open
       await androidPlugin.requestNotificationsPermission();
-      await androidPlugin.requestExactAlarmsPermission();
     }
   }
 
@@ -257,12 +256,11 @@ class AppState extends ChangeNotifier {
       );
       debugPrint('User granted permission: ${settings.authorizationStatus}');
 
-      // Request runtime notification & exact alarm permissions for Android
+      // Request runtime notification permissions for Android
       final androidPlugin = _localNotificationsPlugin
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         await androidPlugin.requestNotificationsPermission();
-        await androidPlugin.requestExactAlarmsPermission();
       }
 
       // 2. Fetch token
