@@ -32,7 +32,7 @@ class _VehicleSelectionSheetState extends State<VehicleSelectionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.read<AppState>();
+    final appState = context.watch<AppState>();
     final models = appState.getModelsForType(_selectedType);
     final filteredModels = models.where((model) {
       return model.name.toLowerCase().contains(_searchQuery.toLowerCase());
