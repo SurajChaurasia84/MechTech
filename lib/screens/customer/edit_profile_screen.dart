@@ -133,10 +133,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00E676).withOpacity(0.05),
+                color: const Color(0xFF00E676).withValues(alpha:0.05),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00E676).withOpacity(0.05),
+                    color: const Color(0xFF00E676).withValues(alpha:0.05),
                     blurRadius: 50,
                     spreadRadius: 20,
                   ),
@@ -240,7 +240,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E676).withOpacity(0.2),
+                                  color: const Color(0xFF00E676).withValues(alpha:0.2),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
                                 )
@@ -313,7 +313,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: enabled ? const Color(0xFF302B53) : const Color(0xFF302B53).withOpacity(0.4),
+            color: enabled ? const Color(0xFF302B53) : const Color(0xFF302B53).withValues(alpha:0.4),
             width: 1.5,
           ),
         ),
@@ -323,7 +323,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: const Color(0xFF302B53).withOpacity(0.4), width: 1.5),
+          borderSide: BorderSide(color: const Color(0xFF302B53).withValues(alpha:0.4), width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
