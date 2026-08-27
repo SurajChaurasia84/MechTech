@@ -68,7 +68,7 @@ class ProfileTab extends StatelessWidget {
               color: const Color(0xFF161426),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFF302B53).withOpacity(0.5),
+                color: const Color(0xFF302B53).withValues(alpha:0.5),
                 width: 1.2,
               ),
             ),
@@ -250,7 +250,7 @@ class ProfileTab extends StatelessWidget {
                 'Version 2.1.0 (6)',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: const Color(0xFF8B88A5).withOpacity(0.8),
+                  color: const Color(0xFF8B88A5).withValues(alpha:0.8),
                 ),
               ),
               const SizedBox(height: 6),
@@ -258,7 +258,7 @@ class ProfileTab extends StatelessWidget {
                 '© 2026 MechTech. All rights reserved.',
                 style: GoogleFonts.inter(
                   fontSize: 11,
-                  color: const Color(0xFF8B88A5).withOpacity(0.5),
+                  color: const Color(0xFF8B88A5).withValues(alpha:0.5),
                 ),
               ),
             ],
