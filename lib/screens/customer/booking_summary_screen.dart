@@ -556,10 +556,10 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
               height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00B0FF).withOpacity(0.06),
+                color: const Color(0xFF00B0FF).withValues(alpha:0.06),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00B0FF).withOpacity(0.06),
+                    color: const Color(0xFF00B0FF).withValues(alpha:0.06),
                     blurRadius: 60,
                     spreadRadius: 30,
                   ),
@@ -635,14 +635,14 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF161426),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFF00B0FF).withOpacity(0.4), width: 1.2),
+                              border: Border.all(color: const Color(0xFF00B0FF).withValues(alpha:0.4), width: 1.2),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF00B0FF).withOpacity(0.12),
+                                    color: const Color(0xFF00B0FF).withValues(alpha:0.12),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const Icon(
@@ -699,7 +699,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF161426).withOpacity(0.6),
+                                color: const Color(0xFF161426).withValues(alpha:0.6),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               child: Row(
@@ -917,7 +917,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                   decoration: BoxDecoration(
                                     color: _selectedPaymentMethod == 'Online'
-                                        ? const Color(0xFF00E676).withOpacity(0.08)
+                                        ? const Color(0xFF00E676).withValues(alpha:0.08)
                                         : const Color(0xFF0D0B18),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
@@ -988,7 +988,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                   decoration: BoxDecoration(
                                     color: _selectedPaymentMethod == 'COD'
-                                        ? const Color(0xFF00E676).withOpacity(0.08)
+                                        ? const Color(0xFF00E676).withValues(alpha:0.08)
                                         : const Color(0xFF0D0B18),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
@@ -1068,7 +1068,7 @@ class _BookingSummaryScreenState extends State<BookingSummaryScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00E676).withOpacity(_isLoading ? 0 : 0.3),
+                          color: const Color(0xFF00E676).withValues(alpha:_isLoading ? 0 : 0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 5),
                         )
