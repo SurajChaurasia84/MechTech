@@ -313,10 +313,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00B0FF).withOpacity(0.05),
+                color: const Color(0xFF00B0FF).withValues(alpha:0.05),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00B0FF).withOpacity(0.05),
+                    color: const Color(0xFF00B0FF).withValues(alpha:0.05),
                     blurRadius: 50,
                     spreadRadius: 20,
                   ),
@@ -469,7 +469,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E676).withOpacity(0.2),
+                                  color: const Color(0xFF00E676).withValues(alpha:0.2),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
                                 )
