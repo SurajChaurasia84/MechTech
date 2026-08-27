@@ -136,7 +136,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF00E676).withOpacity(0.04),
+                color: const Color(0xFF00E676).withValues(alpha:0.04),
               ),
             ),
           ),
@@ -271,7 +271,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                         color: const Color(0xFF161426),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFF302B53).withOpacity(0.8),
+                          color: const Color(0xFF302B53).withValues(alpha:0.8),
                           width: 1.2,
                         ),
                       ),
@@ -296,7 +296,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF00E676).withOpacity(0.12),
+                                    color: const Color(0xFF00E676).withValues(alpha:0.12),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -362,7 +362,7 @@ class _MyJobPostsScreenState extends State<MyJobPostsScreen> {
                             Text(
                               desc,
                               style: GoogleFonts.inter(
-                                color: const Color(0xFF8B88A5).withOpacity(0.8),
+                                color: const Color(0xFF8B88A5).withValues(alpha:0.8),
                                 fontSize: 12,
                                 fontStyle: FontStyle.italic,
                               ),
