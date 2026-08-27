@@ -60,9 +60,10 @@ class MechanicProfileTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00B0FF).withOpacity(0.12),
+                    color: const Color(0xFF00B0FF).withValues(alpha:0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF00B0FF).withOpacity(0.4)),
+                    border: Border.all(color: const Color(0xFF00B0FF).withValues(alpha:
+                    0.4)),
                   ),
                   child: Text(
                     'Professional Mechanic',
@@ -84,7 +85,7 @@ class MechanicProfileTab extends StatelessWidget {
               color: const Color(0xFF161426),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFF302B53).withOpacity(0.5),
+                color: const Color(0xFF302B53).withValues(alpha:0.5),
                 width: 1.2,
               ),
             ),
@@ -245,7 +246,7 @@ class MechanicProfileTab extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -254,7 +255,7 @@ class MechanicProfileTab extends StatelessWidget {
                 'Version 2.1.0 (6)',
                 style: GoogleFonts.inter(
                   fontSize: 12,
-                  color: const Color(0xFF8B88A5).withOpacity(0.8),
+                  color: const Color(0xFF8B88A5).withValues(alpha:0.8),
                 ),
               ),
               const SizedBox(height: 6),
@@ -262,7 +263,7 @@ class MechanicProfileTab extends StatelessWidget {
                 '© 2026 MechTech. All rights reserved.',
                 style: GoogleFonts.inter(
                   fontSize: 11,
-                  color: const Color(0xFF8B88A5).withOpacity(0.5),
+                  color: const Color(0xFF8B88A5).withValues(alpha:0.5),
                 ),
               ),
             ],
