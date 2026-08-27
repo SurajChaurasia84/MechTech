@@ -39,11 +39,11 @@ class BookingSuccessScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: themeColor.withOpacity(0.1),
+                    color: themeColor.withValues(alpha:0.1),
                     border: Border.all(color: themeColor, width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: themeColor.withOpacity(0.2),
+                        color: themeColor.withValues(alpha:0.2),
                         blurRadius: 30,
                         spreadRadius: 5,
                       ),
