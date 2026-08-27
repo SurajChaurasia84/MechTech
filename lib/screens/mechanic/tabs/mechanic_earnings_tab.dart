@@ -99,14 +99,14 @@ class MechanicEarningsTab extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFF161426),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF302B53).withOpacity(0.3)),
+                  border: Border.all(color: const Color(0xFF302B53).withValues(alpha:0.3)),
                 ),
                 child: Column(
                   children: [
                     Icon(
                       Icons.history_toggle_off_rounded,
                       size: 44,
-                      color: const Color(0xFF8B88A5).withOpacity(0.5),
+                      color: const Color(0xFF8B88A5).withValues(alpha:0.5),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -141,7 +141,7 @@ class MechanicEarningsTab extends StatelessWidget {
         color: const Color(0xFF161426),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFF302B53).withOpacity(0.8),
+          color: const Color(0xFF302B53).withValues(alpha:0.8),
           width: 1.2,
         ),
       ),
@@ -151,7 +151,7 @@ class MechanicEarningsTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha:0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 22),
@@ -190,7 +190,7 @@ class MechanicEarningsTab extends StatelessWidget {
           color: const Color(0xFF161426),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFF302B53).withOpacity(0.5),
+            color: const Color(0xFF302B53).withValues(alpha:0.5),
             width: 1.0,
           ),
         ),
@@ -251,7 +251,7 @@ class MechanicEarningsTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00E676).withOpacity(0.1),
+                    color: const Color(0xFF00E676).withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
