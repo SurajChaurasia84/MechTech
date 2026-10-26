@@ -1,5 +1,3 @@
-# MechTech 🔧⚡🚗
-
 <div align="center">
 
   <img src="assets/icon.png" alt="MechTech Logo" width="110" height="110" style="border-radius: 22px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
@@ -48,7 +46,7 @@ Whether facing a sudden highway breakdown, punctured tyre, dead battery, routine
 
 ### Core Highlights:
 - 📍 **Instant Nearby Discovery:** Finds certified mechanics closest to you based on live GPS location and verified reviews.
-- 🚗🏍️⚡ **All Vehicles Covered:** Tailored service catalogs for **Cars**, **Bikes**, and **Electric Vehicles (EVs)**.
+- 📌 **All Vehicles Covered:** Tailored service catalogs for **Cars🚗**, **Bikes🏍️**, and **Electric Vehicles (EVs)⚡**.
 - 💳 **Online & Cash on Delivery:** Integrated Razorpay checkout (UPI, cards, net banking) alongside Cash-on-Delivery (COD).
 - 💬 **Live In-App Chat:** Real-time messaging with assigned mechanics including photo sharing.
 - 📄 **Digital Invoicing:** Itemized PDF tax invoice generated and saved straight to your phone.
@@ -208,10 +206,9 @@ flowchart TD
 
 ## 📲 Download & Links
 
-- **Google Play Store:** [Download MechTech App](https://play.google.com/store/apps/details?id=com.mechtech.mechanic.apps&hl=en_IN)
-- **Package ID:** `com.mechtech.mechanic.apps`
+- **Google Play Store:** [Download App](https://play.google.com/store/apps/details?id=com.mechtech.mechanic.apps&hl=en_IN)
 - **GitHub Repository:** [SurajChaurasia84/MechTech](https://github.com/SurajChaurasia84/MechTech)
-- **Privacy Policy:** [MechTech Privacy Policy](https://surajchaurasia84.github.io/MechTech/)
+- **Privacy Policy:** [Privacy Policy](https://surajchaurasia84.github.io/MechTech/)
 
 <div align="center">
   <sub>Built with ❤️ for drivers and mechanics everywhere.</sub>
